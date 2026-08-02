@@ -13,24 +13,24 @@ export default function Footer() {
         <dl className="mt-6 grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm text-muted sm:grid-cols-2">
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">상호</dt>
-            <dd>풍천대봉감농원 (대표 OOO)</dd>
+            <dd>풍천대봉감농원 (대표 임용균)</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">사업자등록번호</dt>
-            <dd>OOO-OO-OOOOO</dd>
+            <dd>412-9O-42034</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">통신판매업신고</dt>
-            <dd>제OOOO-전남나주-OOOO호</dd>
+            <dd>제2011-전남나주-60호</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">고객센터</dt>
             <dd>
               <a
-                href="tel:010-0000-0000"
+                href="tel:010-2618-5151"
                 className="underline underline-offset-2 hover:text-ink"
               >
-                010-OOOO-OOOO
+                010-2618-5151
               </a>
             </dd>
           </div>

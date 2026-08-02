@@ -198,10 +198,10 @@ export default async function ProductDetailPage({
               <p className="mt-2 text-sm leading-relaxed text-muted">
                 주문·배송 관련 문의는 전화로 받습니다.{' '}
                 <a
-                  href="tel:010-0000-0000"
+                  href="tel:010-2618-5151"
                   className="font-medium text-ink underline underline-offset-2"
                 >
-                  010-OOOO-OOOO
+                  010-2618-5151
                 </a>
               </p>
             </section>

@@ -22,8 +22,8 @@ interface MemoryData {
  */
 const NAJU_PEAR_DETAIL = [
   '나주는 일조량이 풍부하고 일교차가 큰 배 재배 적지입니다. 이곳에서 자란 배는 과육이 아삭하고 과즙이 많으며, 시원하고 깔끔한 단맛이 특징입니다.',
-  '임과일은 전남 나주에서 과수원을 직접 운영합니다. 재배부터 수확, 선별, 포장까지 전 과정을 농장에서 관리하고, 주문 확인 후 산지에서 바로 발송합니다. 중간 유통 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.',
-  '구성은 가정용 3kg·5kg, 선물세트 5kg·7.5kg 중에서 선택할 수 있습니다. 중량과 과수 규격은 각 옵션 설명에 표기되어 있습니다.',
+  '임과일은 전남 나주에서 과수원을 직접 운영하며 신고배와 풍수배 품종을 재배합니다. 재배부터 수확, 선별, 포장까지 전 과정을 농장에서 관리하고, 주문 확인 후 산지에서 바로 발송합니다. 중간 유통 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.',
+  '구성은 선물세트 7.5kg·15kg, 가정용 7.5kg·15kg 중에서 선택할 수 있습니다. 과수 규격은 각 옵션에 표기되어 있으며, 모든 가격은 배송비 포함가입니다.',
   '받으신 배는 한 개씩 종이에 싸서 냉장 보관하면 오래 신선하게 유지됩니다. 상온에 둘 경우 서늘하고 통풍이 잘 되는 곳에 보관해 주세요.',
 ].join('\n\n');
 
@@ -41,7 +41,7 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
   },
   {
     type: 'text',
-    body: '나주는 일조량이 풍부하고 토질이 배 재배에 알맞아 오래전부터 배 산지로 알려진 곳입니다.\n\n이곳에서 자란 배는 과육이 아삭하고 과즙이 풍부하며, 시원하고 깔끔한 단맛이 특징입니다.',
+    body: '나주는 일조량이 풍부하고 토질이 배 재배에 알맞아 오래전부터 배 산지로 알려진 곳입니다.\n\n임과일은 신고배와 풍수배 품종을 재배합니다. 과육이 아삭하고 과즙이 풍부하며, 시원하고 깔끔한 단맛이 특징입니다.',
   },
   {
     type: 'point',
@@ -60,12 +60,12 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
   },
   {
     type: 'specs',
-    title: '상품 구성',
+    title: '상품 구성 (배송비 포함가)',
     rows: [
-      { k: '가정용 3kg', v: 'O~O과' },
-      { k: '가정용 5kg', v: 'O~O과' },
-      { k: '선물세트 5kg', v: 'O~O과' },
-      { k: '선물세트 7.5kg', v: 'O~O과' },
+      { k: '선물세트 7.5kg', v: '8~11과 또는 12~13과' },
+      { k: '선물세트 15kg', v: '20과 내 또는 25과 내' },
+      { k: '가정용 7.5kg', v: '12과 내' },
+      { k: '가정용 15kg', v: '24과 내' },
     ],
   },
   {
@@ -84,65 +84,257 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
   },
 ];
 
-/** SPEC v2 시드 상품 1개 — 나주배만 */
+/** 황금배 상세 — 품종 일반 특징 + 실제 구성 (작년 추석 가격표 기준) */
+const GOLDEN_PEAR_DETAIL = [
+  '황금배는 황금빛이 도는 얇은 껍질과 풍부한 과즙이 특징인 품종입니다. 부드러운 단맛이 있어 선물용과 가정용 모두에서 꾸준히 찾는 배입니다.',
+  '임과일 과수원에서 재배부터 수확, 선별, 포장까지 직접 진행하고 주문 확인 후 산지에서 바로 발송합니다.',
+  '구성은 5kg·7kg·10kg 중에서 선택할 수 있습니다. 과수 규격은 각 옵션에 표기되어 있으며, 모든 가격은 배송비 포함가입니다.',
+].join('\n\n');
+
+const GOLDEN_PEAR_BLOCKS: DetailBlock[] = [
+  {
+    type: 'heading',
+    label: '임과일 황금배',
+    title: '황금빛 껍질, 풍부한 과즙.',
+  },
+  {
+    type: 'text',
+    body: '황금배는 황금빛이 도는 얇은 껍질과 풍부한 과즙이 특징인 품종입니다. 부드러운 단맛이 있어 선물용과 가정용 모두에서 꾸준히 찾는 배입니다.',
+  },
+  {
+    type: 'point',
+    title: '산지 직송',
+    body: '농장에서 경매장, 도매상, 소매점을 거치는 일반적인 유통 대신 농장에서 택배로 바로 발송합니다. 중간 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.',
+  },
+  {
+    type: 'point',
+    title: '재배부터 포장까지 직접',
+    body: '재배부터 수확, 선별, 포장까지 전 과정을 농장에서 직접 진행합니다. 주문 확인 후 산지에서 발송합니다.',
+  },
+  {
+    type: 'specs',
+    title: '상품 구성 (배송비 포함가)',
+    rows: [
+      { k: '5kg', v: '7~10과 또는 11~13과' },
+      { k: '7kg', v: '10~13과 또는 14~18과' },
+      { k: '10kg', v: '20과 내' },
+    ],
+  },
+  {
+    type: 'notice',
+    title: '포장·배송 안내',
+    body: '배 하나하나 완충재로 감싸 배송 중 충격을 줄입니다. 수확 후 신속히 발송하며, 농산물 특성상 크기와 모양은 사진과 다소 다를 수 있습니다.',
+  },
+  {
+    type: 'heading',
+    label: '생산지',
+    title: '전라남도 나주시',
+  },
+  {
+    type: 'text',
+    body: '전라남도 나주시 덕룡로 33-8 (풍천대봉감농원)에서 재배하고 발송합니다.',
+  },
+];
+
+/** 도라지배즙 — 봉지 용량·제조 정보는 확인 후 보강 (PLACEHOLDERS.md) */
+const PEAR_JUICE_DETAIL = [
+  '농장에서 수확한 배에 도라지를 더해 만든 배즙입니다. 낱개 파우치라 하나씩 꺼내 드시기 좋습니다.',
+  '구성은 50봉지, 100봉지 중에서 선택할 수 있습니다. 가격은 배송비 포함가입니다.',
+].join('\n\n');
+
+const PEAR_JUICE_BLOCKS: DetailBlock[] = [
+  {
+    type: 'heading',
+    label: '임과일 도라지배즙',
+    title: '배와 도라지를 그대로 담았습니다.',
+  },
+  {
+    type: 'text',
+    body: '농장에서 수확한 배에 도라지를 더해 만든 배즙입니다. 낱개 파우치라 하나씩 꺼내 드시기 좋습니다.',
+  },
+  {
+    type: 'specs',
+    title: '상품 구성 (배송비 포함가)',
+    rows: [
+      { k: '50봉지', v: '낱개 파우치' },
+      { k: '100봉지', v: '낱개 파우치' },
+    ],
+  },
+  {
+    type: 'heading',
+    label: '생산지',
+    title: '전라남도 나주시',
+  },
+  {
+    type: 'text',
+    body: '전라남도 나주시 덕룡로 33-8 (풍천대봉감농원)의 배로 만들었습니다.',
+  },
+];
+
+/**
+ * 시드 상품 3개 — 사용자의 작년 추석 가격표 기준 실제 카탈로그.
+ * 가격은 작년(2025 추석) 기준이므로 시즌마다 관리자에서 갱신.
+ */
 function seedProducts(): Product[] {
   return [
     {
       id: 'naju-pear',
       name: '나주배',
-      subtitle: '아삭하고 과즙 가득, 산지에서 바로 보내드려요',
+      subtitle: '신고·풍수 품종, 산지에서 바로 보내드립니다',
       imageUrl: null,
       detail: NAJU_PEAR_DETAIL,
       blocks: NAJU_PEAR_BLOCKS,
       isActive: true,
       sortOrder: 1,
     },
+    {
+      id: 'golden-pear',
+      name: '황금배',
+      subtitle: '황금빛 껍질에 과즙이 풍부한 황금배',
+      imageUrl: null,
+      detail: GOLDEN_PEAR_DETAIL,
+      blocks: GOLDEN_PEAR_BLOCKS,
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'pear-juice',
+      name: '도라지배즙',
+      subtitle: '농장 배에 도라지를 더해 만든 배즙',
+      imageUrl: null,
+      detail: PEAR_JUICE_DETAIL,
+      blocks: PEAR_JUICE_BLOCKS,
+      isActive: true,
+      sortOrder: 3,
+    },
   ];
 }
 
 /**
- * SPEC 시드 옵션 4개 — 상품 소속이므로 이름에서 "나주배" 접두 제거.
- * 가격·과수는 placeholder (PLACEHOLDERS.md 참고). 과수는 상세 블록의
- * "상품 구성" 표(O~O과)와 같은 placeholder 로 맞춰 확인 전 임의 수치가
- * 실제 정보처럼 보이지 않게 한다.
+ * 시드 옵션 13개 — 작년 추석 가격표 그대로 (배송비 포함가).
+ * 가격은 시즌마다 관리자 /admin/products 에서 갱신.
  */
 function seedOptions(): ProductOption[] {
   return [
+    // 나주배 (신고·풍수)
     {
-      id: 'home-3kg',
+      id: 'np-gift-7-5-l',
       productId: 'naju-pear',
-      name: '가정용 3kg',
-      description: 'O~O과 · 실속 가정용',
-      price: 19000,
+      name: '선물세트 7.5kg (8~11과)',
+      description: '대과 위주 · 명절 선물용',
+      price: 48000,
       soldOut: false,
       sortOrder: 1,
     },
     {
-      id: 'home-5kg',
+      id: 'np-gift-7-5-m',
       productId: 'naju-pear',
-      name: '가정용 5kg',
-      description: 'O~O과 · 넉넉한 가정용',
-      price: 27000,
+      name: '선물세트 7.5kg (12~13과)',
+      description: '중과 · 명절 선물용',
+      price: 38000,
       soldOut: false,
       sortOrder: 2,
     },
     {
-      id: 'gift-5kg',
+      id: 'np-gift-15-l',
       productId: 'naju-pear',
-      name: '선물세트 5kg',
-      description: 'O~O과 · 명절 선물용',
-      price: 35000,
+      name: '선물세트 15kg (20과 내)',
+      description: '대과 위주 · 대용량',
+      price: 80000,
       soldOut: false,
       sortOrder: 3,
     },
     {
-      id: 'gift-7-5kg',
+      id: 'np-gift-15-m',
       productId: 'naju-pear',
-      name: '선물세트 7.5kg',
-      description: 'O~O과 · 대용량 선물세트',
-      price: 45000,
+      name: '선물세트 15kg (25과 내)',
+      description: '중과 · 대용량',
+      price: 68000,
       soldOut: false,
       sortOrder: 4,
+    },
+    {
+      id: 'np-home-7-5',
+      productId: 'naju-pear',
+      name: '가정용 7.5kg (12과 내)',
+      description: '실속 가정용',
+      price: 29000,
+      soldOut: false,
+      sortOrder: 5,
+    },
+    {
+      id: 'np-home-15',
+      productId: 'naju-pear',
+      name: '가정용 15kg (24과 내)',
+      description: '넉넉한 가정용',
+      price: 48000,
+      soldOut: false,
+      sortOrder: 6,
+    },
+    // 황금배
+    {
+      id: 'gp-5-l',
+      productId: 'golden-pear',
+      name: '5kg (7~10과)',
+      description: '대과 위주',
+      price: 37000,
+      soldOut: false,
+      sortOrder: 1,
+    },
+    {
+      id: 'gp-5-m',
+      productId: 'golden-pear',
+      name: '5kg (11~13과)',
+      description: '중과',
+      price: 30000,
+      soldOut: false,
+      sortOrder: 2,
+    },
+    {
+      id: 'gp-7-l',
+      productId: 'golden-pear',
+      name: '7kg (10~13과)',
+      description: '대과 위주',
+      price: 50000,
+      soldOut: false,
+      sortOrder: 3,
+    },
+    {
+      id: 'gp-7-m',
+      productId: 'golden-pear',
+      name: '7kg (14~18과)',
+      description: '중과',
+      price: 40000,
+      soldOut: false,
+      sortOrder: 4,
+    },
+    {
+      id: 'gp-10',
+      productId: 'golden-pear',
+      name: '10kg (20과 내)',
+      description: '대과 위주 · 대용량',
+      price: 80000,
+      soldOut: false,
+      sortOrder: 5,
+    },
+    // 도라지배즙
+    {
+      id: 'pj-50',
+      productId: 'pear-juice',
+      name: '50봉지',
+      description: '낱개 파우치',
+      price: 30000,
+      soldOut: false,
+      sortOrder: 1,
+    },
+    {
+      id: 'pj-100',
+      productId: 'pear-juice',
+      name: '100봉지',
+      description: '낱개 파우치',
+      price: 50000,
+      soldOut: false,
+      sortOrder: 2,
     },
   ];
 }
@@ -167,13 +359,13 @@ function seedOrders(): Order[] {
       {
         productId: 'naju-pear',
         productName: '나주배',
-        optionId: 'gift-5kg',
-        optionName: '선물세트 5kg',
-        unitPrice: 35000,
+        optionId: 'np-gift-7-5-m',
+        optionName: '선물세트 7.5kg (12~13과)',
+        unitPrice: 38000,
         quantity: 1,
       },
     ],
-    totalAmount: 35000,
+    totalAmount: 38000,
     paymentKey: null,
     paymentMethod: '카드',
     paidAt: yesterday.toISOString(),
@@ -196,13 +388,13 @@ function seedOrders(): Order[] {
       {
         productId: 'naju-pear',
         productName: '나주배',
-        optionId: 'home-3kg',
-        optionName: '가정용 3kg',
-        unitPrice: 19000,
+        optionId: 'np-home-7-5',
+        optionName: '가정용 7.5kg (12과 내)',
+        unitPrice: 29000,
         quantity: 2,
       },
     ],
-    totalAmount: 38000,
+    totalAmount: 58000,
     paymentKey: null,
     paymentMethod: '간편결제',
     paidAt: threeDaysAgo.toISOString(),
@@ -222,16 +414,16 @@ function seedOrders(): Order[] {
  */
 function getData(): MemoryData {
   const g = globalThis as typeof globalThis & {
-    __limfruitsMemoryDbV2_1?: MemoryData;
+    __limfruitsMemoryDbV2_2?: MemoryData;
   };
-  if (!g.__limfruitsMemoryDbV2_1) {
-    g.__limfruitsMemoryDbV2_1 = {
+  if (!g.__limfruitsMemoryDbV2_2) {
+    g.__limfruitsMemoryDbV2_2 = {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
     };
   }
-  return g.__limfruitsMemoryDbV2_1;
+  return g.__limfruitsMemoryDbV2_2;
 }
 
 function clone<T>(value: T): T {
