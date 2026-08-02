@@ -1,19 +1,6 @@
 import type { Metadata } from "next";
-import { Jua, Noto_Sans_KR } from "next/font/google";
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
-
-const jua = Jua({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-jua",
-  display: "swap",
-});
-
-const notoSansKr = Noto_Sans_KR({
-  subsets: ["latin"],
-  variable: "--font-noto-sans-kr",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -24,11 +11,11 @@ export const metadata: Metadata = {
     template: "%s | 임과일",
   },
   description:
-    "가족이 직접 농사지은 나주배를 산지에서 바로 보내드립니다. 임과일 나주배 직판 온라인 주문.",
+    "전남 나주 농장에서 직접 재배하고, 주문 확인 후 산지에서 발송합니다. 임과일 나주배 직판 온라인 주문.",
   openGraph: {
     title: "임과일 — 나주배 직판",
     description:
-      "가족이 직접 농사지은 나주배를 산지에서 바로 보내드립니다. 임과일 나주배 직판 온라인 주문.",
+      "전남 나주 농장에서 직접 재배하고, 주문 확인 후 산지에서 발송합니다. 임과일 나주배 직판 온라인 주문.",
     images: ["/logo.jpeg"],
     locale: "ko_KR",
     type: "website",
@@ -41,10 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ko"
-      className={`${jua.variable} ${notoSansKr.variable} h-full antialiased`}
-    >
+    <html lang="ko" className="h-full antialiased">
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

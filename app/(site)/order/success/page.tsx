@@ -25,7 +25,7 @@ const PENDING_CONFIRM_TTL_MS = 30 * 60 * 1000;
  * 토스 successUrl 수신 → 서버에서 결제 승인(confirm) → 완료 페이지로 redirect.
  * - 금액은 DB의 totalAmount와 대조하고, 승인 요청에도 DB 금액을 사용한다.
  * - 이미 PAID인 주문은 승인 없이 완료 페이지로 (새로고침 멱등성).
- * - 승인 직전에 옵션 품절 여부와 주문 생성 시각(30분)을 재확인한다.
+ * - 승인 직전에 옵션 품절·상품 노출 여부와 주문 생성 시각(30분)을 재확인한다.
  */
 export default async function OrderSuccessPage({
   searchParams,
@@ -77,6 +77,12 @@ export default async function OrderSuccessPage({
   const option = optionId ? await store.getOption(optionId) : null;
   if (!option || option.soldOut) {
     redirect(failUrl('LIMFRUITS_SOLD_OUT'));
+  }
+
+  // 승인 직전 상품 노출 재확인 (주문 생성 후 관리자가 상품을 숨겼을 수 있음)
+  const product = await store.getProduct(option.productId);
+  if (!product || !product.isActive) {
+    redirect(failUrl('LIMFRUITS_PRODUCT_INACTIVE'));
   }
 
   // 결제 승인 (승인 금액은 반드시 DB의 totalAmount)

@@ -40,11 +40,20 @@ interface FieldErrors {
 }
 
 export interface OrderFormProps {
+  /** 주문 대상 상품명 — 제목·주문 요약에 표시 */
+  productName: string;
+  /** 같은 상품에 속한 옵션만 넘긴다 */
   options: ProductOption[];
   preselectedId?: string;
+  initialQuantity?: number;
 }
 
-export default function OrderForm({ options, preselectedId }: OrderFormProps) {
+export default function OrderForm({
+  productName,
+  options,
+  preselectedId,
+  initialQuantity = 1,
+}: OrderFormProps) {
   const available = useMemo(
     () => options.filter((o) => !o.soldOut),
     [options]
@@ -59,7 +68,9 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
 
   // 주문 입력 상태
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(() =>
+    Math.min(Math.max(initialQuantity, 1), MAX_QUANTITY)
+  );
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [postcode, setPostcode] = useState('');
@@ -297,18 +308,18 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
       : '결제하기';
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <SectionTitle as="h1" sub="옵션과 배송 정보를 입력하시면 바로 보내드릴게요.">
-        나주배 주문하기
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
+      <SectionTitle as="h1" sub="옵션과 배송 정보를 확인한 뒤 결제를 진행해 주세요.">
+        {productName} 주문하기
       </SectionTitle>
 
       {/* 1. 옵션 선택 */}
       <Card id="order-section-option">
-        <h2 className="font-heading text-xl text-brand-dark">옵션 선택</h2>
+        <h2 className="text-lg font-bold tracking-tight text-ink">옵션 선택</h2>
         <div className="mt-4">
           {options.length === 0 ? (
-            <p className="text-ink/70">
-              지금은 주문 가능한 상품이 없어요. 잠시 후 다시 찾아와 주세요.
+            <p className="text-muted">
+              지금은 주문 가능한 구성이 없습니다. 잠시 후 다시 확인해 주세요.
             </p>
           ) : (
             <OptionPicker
@@ -321,20 +332,19 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
             />
           )}
           {errors.option && (
-            <p className="mt-2 text-sm font-medium text-accent-red">
+            <p className="mt-2 text-sm font-medium text-danger">
               {errors.option}
             </p>
           )}
           {options.length > 0 && available.length === 0 && (
-            <p className="mt-3 rounded-xl bg-accent-red/10 px-4 py-3 text-sm font-medium text-accent-red">
-              죄송해요, 지금은 모든 옵션이 품절이에요. 다음 수확 때 다시
-              찾아와 주세요.
+            <p className="mt-3 rounded-xl bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+              현재 모든 구성이 품절입니다. 다음 수확 시 다시 판매합니다.
             </p>
           )}
         </div>
         {available.length > 0 && (
-          <div className="mt-5 flex items-center justify-between border-t-2 border-brand/15 pt-4">
-            <span className="font-bold text-ink">수량</span>
+          <div className="mt-5 flex items-center justify-between border-t border-hairline pt-4">
+            <span className="font-medium text-ink">수량</span>
             <QuantityStepper
               value={quantity}
               min={1}
@@ -347,7 +357,7 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
 
       {/* 2. 주문자 정보 */}
       <Card>
-        <h2 className="font-heading text-xl text-brand-dark">주문자 정보</h2>
+        <h2 className="text-lg font-bold tracking-tight text-ink">주문자 정보</h2>
         <div className="mt-4 flex flex-col gap-3">
           <Input
             id="order-input-name"
@@ -375,7 +385,7 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
             }}
             placeholder="010-1234-5678"
             autoComplete="tel"
-            hint="주문 확인과 배송 안내를 위해 꼭 필요해요."
+            hint="주문 확인과 배송 안내에 사용합니다."
             error={errors.phone}
           />
         </div>
@@ -383,7 +393,7 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
 
       {/* 3. 배송지 */}
       <Card id="order-section-address">
-        <h2 className="font-heading text-xl text-brand-dark">배송지</h2>
+        <h2 className="text-lg font-bold tracking-tight text-ink">배송지</h2>
         <div className="mt-4 flex flex-col gap-3">
           <AddressFields
             postcode={postcode}
@@ -410,12 +420,12 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
       {/* 4. 결제 수단 + 약관 (토스 결제위젯) */}
       {available.length > 0 && (
         <Card padding="none">
-          <h2 className="px-5 pt-5 font-heading text-xl text-brand-dark sm:px-6 sm:pt-6">
+          <h2 className="px-5 pt-5 text-lg font-bold tracking-tight text-ink sm:px-6 sm:pt-6">
             결제 수단
           </h2>
           {widgetError ? (
             <div className="flex flex-col items-start gap-3 px-5 py-6 sm:px-6">
-              <p className="text-ink/80">{widgetError}</p>
+              <p className="text-ink/85">{widgetError}</p>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -431,8 +441,8 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
           ) : (
             <>
               {!widgetReady && (
-                <p className="px-5 pt-3 text-sm text-ink/50 sm:px-6">
-                  결제 화면을 불러오는 중이에요…
+                <p className="px-5 pt-3 text-sm text-muted sm:px-6">
+                  결제 화면을 불러오는 중입니다…
                 </p>
               )}
               <div id="toss-payment-methods" />
@@ -446,15 +456,15 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
       <Card tone="light" className="hidden lg:block">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-ink/60">
+            <p className="text-sm text-muted">
               {selectedOption
-                ? `${selectedOption.name} · ${quantity}개`
+                ? `${productName} ${selectedOption.name} · ${quantity}개`
                 : '옵션을 선택해 주세요'}
             </p>
-            <p className="mt-1 text-2xl font-bold text-brand-dark">
+            <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
               {formatWon(total)}
-              <span className="ml-1 text-sm font-medium text-ink/60">
-                (배송비 포함)
+              <span className="ml-1 text-sm font-normal text-muted">
+                배송비 포함
               </span>
             </p>
           </div>
@@ -463,29 +473,29 @@ export default function OrderForm({ options, preselectedId }: OrderFormProps) {
           </Button>
         </div>
         {submitError && (
-          <p className="mt-3 text-sm font-medium text-accent-red" role="alert">
+          <p className="mt-3 text-sm font-medium text-danger" role="alert">
             {submitError}
           </p>
         )}
       </Card>
 
       {/* 하단 결제 바 (모바일) — sticky라 문서 끝까지 내리면 푸터가 온전히 드러난다 */}
-      <div className="sticky bottom-0 z-40 -mx-4 border-t-2 border-brand bg-white px-4 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] sm:-mx-6 sm:px-6 lg:hidden">
+      <div className="sticky bottom-0 z-40 -mx-4 border-t border-hairline bg-white/95 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
           {/* 검증 에러를 고정 바 안에도 표시해 버튼을 누른 자리에서 바로 보이게 한다 */}
           {submitError && (
-            <p className="text-sm font-medium text-accent-red" role="alert">
+            <p className="text-sm font-medium text-danger" role="alert">
               {submitError}
             </p>
           )}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-xs text-ink/60">
+              <p className="truncate text-xs text-muted">
                 {selectedOption
                   ? `${selectedOption.name} · ${quantity}개`
                   : '옵션을 선택해 주세요'}
               </p>
-              <p className="text-lg font-bold text-brand-dark">
+              <p className="text-lg font-bold tabular-nums text-ink">
                 {formatWon(total)}
               </p>
             </div>

@@ -31,13 +31,13 @@ export default function Select({
       <label
         htmlFor={selectId}
         className={cn(
-          "text-sm font-bold text-brand-dark",
+          "text-sm font-medium text-ink",
           labelHidden && "sr-only"
         )}
       >
         {label}
         {required && (
-          <span aria-hidden="true" className="ml-0.5 text-accent-red">
+          <span aria-hidden="true" className="ml-0.5 text-danger">
             *
           </span>
         )}
@@ -49,10 +49,10 @@ export default function Select({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : hint ? hintId : undefined}
           className={cn(
-            "w-full cursor-pointer appearance-none rounded-xl border-2 bg-white px-4 py-3 pr-10 text-base text-ink focus:outline-none",
+            "w-full cursor-pointer appearance-none rounded-xl border bg-white px-4 py-3 pr-10 text-base text-ink transition-colors focus:outline-none",
             error
-              ? "border-accent-red focus:border-accent-red"
-              : "border-brand/35 focus:border-brand",
+              ? "border-danger focus:border-danger"
+              : "border-hairline focus:border-brand",
             className
           )}
           {...props}
@@ -62,10 +62,10 @@ export default function Select({
         <svg
           aria-hidden="true"
           viewBox="0 0 16 16"
-          className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-brand-dark"
+          className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-muted"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
@@ -73,12 +73,12 @@ export default function Select({
         </svg>
       </div>
       {hint && !error && (
-        <p id={hintId} className="text-sm text-ink/60">
+        <p id={hintId} className="text-sm text-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-sm font-medium text-accent-red">
+        <p id={errorId} className="text-sm font-medium text-danger">
           {error}
         </p>
       )}

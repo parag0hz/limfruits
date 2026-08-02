@@ -11,7 +11,7 @@ export interface SectionTitleProps {
   className?: string;
 }
 
-/** 섹션 제목 — Jua 손글씨 서체 + 진한 그린 */
+/** 섹션 제목 — Pretendard 볼드 + tracking-tight, 보조 설명은 muted */
 export default function SectionTitle({
   children,
   sub,
@@ -21,10 +21,10 @@ export default function SectionTitle({
 }: SectionTitleProps) {
   return (
     <div className={cn(align === "center" && "text-center", className)}>
-      <Tag className="font-heading text-2xl text-brand-dark sm:text-3xl">
+      <Tag className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
         {children}
       </Tag>
-      {sub && <p className="mt-1.5 text-base text-ink/70">{sub}</p>}
+      {sub && <p className="mt-2 text-base text-muted">{sub}</p>}
     </div>
   );
 }

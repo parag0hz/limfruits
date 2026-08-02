@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 import { cn } from "./cn";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  /** 연한 그린 배경 카드 */
+  /** white: 화이트 + 헤어라인 / light: 서피스 배경 (보더 없음) */
   tone?: "white" | "light";
   /**
    * 내부 패딩. cn()이 단순 문자열 결합이라 className으로 `p-0` 등을 넘겨도
@@ -21,7 +21,7 @@ const PADDING_CLASSES: Record<NonNullable<CardProps["padding"]>, string> = {
   none: "",
 };
 
-/** 손그림 스티커 느낌 카드: 둥근 모서리 + 2px 그린 테두리, 그림자 최소화 */
+/** BRAND v2 카드 — rounded-2xl, 1px 헤어라인 또는 서피스 배경. 두꺼운 테두리 금지 */
 export default function Card({
   tone = "white",
   padding = "md",
@@ -31,9 +31,9 @@ export default function Card({
   return (
     <div
       className={cn(
-        "rounded-3xl border-2 border-brand",
+        "rounded-2xl",
         PADDING_CLASSES[padding],
-        tone === "white" ? "bg-white" : "bg-brand-light",
+        tone === "white" ? "border border-hairline bg-white" : "bg-surface",
         className
       )}
       {...props}

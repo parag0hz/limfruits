@@ -28,10 +28,10 @@ export default function OrderStatusTimeline({
             <div className="flex flex-col items-center gap-1.5">
               <span
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-bold',
+                  'flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold',
                   active
-                    ? 'border-brand bg-brand text-white'
-                    : 'border-ink/20 bg-white text-ink/40'
+                    ? 'bg-brand text-white'
+                    : 'border border-hairline bg-white text-muted/70'
                 )}
                 aria-hidden="true"
               >
@@ -55,10 +55,10 @@ export default function OrderStatusTimeline({
                 className={cn(
                   'text-sm whitespace-nowrap',
                   current
-                    ? 'font-bold text-brand-dark'
+                    ? 'font-semibold text-ink'
                     : active
-                      ? 'font-medium text-brand-dark/70'
-                      : 'text-ink/40'
+                      ? 'font-medium text-muted'
+                      : 'text-muted/70'
                 )}
               >
                 {step.label}
@@ -69,10 +69,10 @@ export default function OrderStatusTimeline({
               <span
                 aria-hidden="true"
                 className={cn(
-                  'mx-2 mb-6 h-0.5 flex-1 rounded-full',
+                  'mx-2 mb-6 h-px flex-1 rounded-full',
                   STEPS[i + 1].reached.includes(status)
                     ? 'bg-brand'
-                    : 'bg-ink/15'
+                    : 'bg-hairline'
                 )}
               />
             )}

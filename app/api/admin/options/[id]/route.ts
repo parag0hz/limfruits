@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { getStore } from "@/lib/db";
 import type { ProductOption } from "@/lib/types";
+import { MAX_OPTION_PRICE, MAX_SORT_ORDER } from "../option-limits";
 
 /**
  * PATCH /api/admin/options/[id]
  * body: { name?, description?, price?, soldOut?, sortOrder? }
- * - price는 양의 정수(원 단위)만 허용
+ * - price는 양의 정수(원 단위)만 허용, 상한 있음 (option-limits.ts)
  */
 export async function PATCH(
   request: Request,
@@ -66,6 +67,12 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (body.price > MAX_OPTION_PRICE) {
+      return NextResponse.json(
+        { error: "가격은 1억 원 이하로만 입력할 수 있습니다." },
+        { status: 400 }
+      );
+    }
     patch.price = body.price;
   }
 
@@ -83,7 +90,8 @@ export async function PATCH(
     if (
       typeof body.sortOrder !== "number" ||
       !Number.isInteger(body.sortOrder) ||
-      body.sortOrder < 0
+      body.sortOrder < 0 ||
+      body.sortOrder > MAX_SORT_ORDER
     ) {
       return NextResponse.json(
         { error: "정렬 순서 값이 올바르지 않습니다." },
@@ -112,4 +120,30 @@ export async function PATCH(
   await store.updateOption(id, patch);
   const updated = await store.getOption(id);
   return NextResponse.json({ ok: true, option: updated });
+}
+
+/**
+ * DELETE /api/admin/options/[id]
+ * 옵션을 삭제한다. 기존 주문은 주문 시점 스냅샷을 저장하므로 영향 없음.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
+  const { id } = await params;
+
+  const store = getStore();
+  const option = await store.getOption(id);
+  if (!option) {
+    return NextResponse.json(
+      { error: "옵션을 찾을 수 없습니다." },
+      { status: 404 }
+    );
+  }
+
+  await store.deleteOption(id);
+  return NextResponse.json({ ok: true });
 }

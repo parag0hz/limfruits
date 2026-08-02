@@ -25,7 +25,7 @@ export default function RefreshButton() {
       type="button"
       onClick={handleRefresh}
       disabled={busy}
-      className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-brand bg-white px-5 text-lg font-bold text-brand-dark transition-colors hover:bg-brand-light disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full border border-hairline bg-white px-5 text-lg font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
     >
       <svg
         aria-hidden="true"

@@ -10,22 +10,20 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary:
-    "border-brand-dark bg-brand text-white hover:bg-brand-dark active:bg-brand-dark",
-  outline:
-    "border-brand bg-white text-brand-dark hover:bg-brand-light active:bg-brand-light",
+  primary: "bg-brand text-white hover:bg-brand-dark active:bg-brand-dark",
+  outline: "bg-surface text-ink hover:bg-hairline/70 active:bg-hairline",
   danger:
-    "border-accent-red bg-white text-accent-red hover:bg-accent-red hover:text-white active:bg-accent-red active:text-white",
+    "border border-danger/30 bg-white text-danger hover:bg-danger/5 active:bg-danger/10",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  md: "min-h-11 px-4 py-2 text-base",
-  lg: "min-h-13 px-6 py-3 text-lg",
+  md: "min-h-11 px-5 py-2 text-base",
+  lg: "min-h-13 px-7 py-3 text-lg",
 };
 
 /**
- * 손그림 감성 버튼: rounded-2xl + 2px 실선 테두리.
- * variant: primary(그린 채움) / outline(흰 바탕 그린 테두리) / danger(레드)
+ * BRAND v2 버튼 — rounded-full, 장식 없는 솔리드/서피스.
+ * variant: primary(그린 솔리드) / outline(서피스 배경 + ink) / danger(레드)
  * size: md(44px+) / lg(52px+) — 터치 타깃 확보
  */
 export default function Button({
@@ -39,7 +37,7 @@ export default function Button({
     <button
       type={type}
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-full font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50",
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className

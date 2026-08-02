@@ -4,7 +4,7 @@ import { getStore } from "@/lib/db";
 import { formatDateTime, formatPhone, formatWon } from "@/lib/format";
 import { StatusBadge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
-import { formatOrderTime } from "../../../order-utils";
+import { formatOrderTime, itemLabel } from "../../../order-utils";
 import CopyButton from "./CopyButton";
 import OrderActions from "./OrderActions";
 
@@ -33,12 +33,10 @@ export default async function AdminOrderDetailPage({
   if (!order) {
     return (
       <div className="py-10 text-center">
-        <p className="text-xl font-bold text-ink/70">
-          주문을 찾을 수 없습니다.
-        </p>
+        <p className="text-xl font-bold text-ink">주문을 찾을 수 없습니다.</p>
         <Link
           href="/admin"
-          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl border-2 border-brand bg-white px-6 text-lg font-bold text-brand-dark hover:bg-brand-light"
+          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-hairline bg-white px-6 text-lg font-semibold text-ink transition-colors hover:bg-surface"
         >
           주문 목록으로 돌아가기
         </Link>
@@ -59,24 +57,24 @@ export default async function AdminOrderDetailPage({
       <div>
         <Link
           href="/admin"
-          className="inline-flex min-h-11 items-center gap-1 text-lg font-bold text-brand-dark hover:underline"
+          className="inline-flex min-h-11 items-center gap-1 text-lg font-semibold text-brand-dark hover:underline"
         >
           &lt; 주문 목록
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-heading text-2xl text-brand-dark">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {order.orderNo}
           </h1>
           <StatusBadge status={order.status} className="text-base" />
         </div>
-        <p className="mt-1 text-base text-ink/60">
+        <p className="mt-1 text-base text-muted">
           주문 시각: {formatOrderTime(order.createdAt)}
         </p>
       </div>
 
       {/* 주문 상품 */}
       <Card padding="sm">
-        <h2 className="text-lg font-bold text-brand-dark">주문 상품</h2>
+        <h2 className="text-lg font-bold text-ink">주문 상품</h2>
         <ul className="mt-2 flex flex-col gap-2">
           {order.items.map((item, i) => (
             <li
@@ -84,18 +82,18 @@ export default async function AdminOrderDetailPage({
               className="flex items-baseline justify-between gap-3"
             >
               <p className="text-lg text-ink">
-                {item.optionName}{" "}
+                {itemLabel(item)}{" "}
                 <span className="font-bold">× {item.quantity}</span>
               </p>
-              <p className="shrink-0 text-lg font-bold text-ink">
+              <p className="shrink-0 text-lg font-bold text-ink tabular-nums">
                 {formatWon(item.unitPrice * item.quantity)}
               </p>
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex items-baseline justify-between border-t-2 border-brand/20 pt-3">
+        <div className="mt-3 flex items-baseline justify-between border-t border-hairline pt-3">
           <p className="text-lg font-bold text-ink">총 결제금액</p>
-          <p className="text-2xl font-bold text-brand-dark">
+          <p className="text-2xl font-bold text-brand-dark tabular-nums">
             {formatWon(order.totalAmount)}
           </p>
         </div>
@@ -103,13 +101,13 @@ export default async function AdminOrderDetailPage({
 
       {/* 주문자 / 배송지 */}
       <Card padding="sm">
-        <h2 className="text-lg font-bold text-brand-dark">주문자 · 배송지</h2>
+        <h2 className="text-lg font-bold text-ink">주문자 · 배송지</h2>
         <div className="mt-2 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xl font-bold text-ink">{order.customerName}</p>
             <a
               href={`tel:${order.phone}`}
-              className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl border-2 border-brand-dark bg-brand px-5 text-lg font-bold text-white transition-colors hover:bg-brand-dark"
+              className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-brand px-5 text-lg font-bold text-white transition-colors hover:bg-brand-dark"
             >
               <svg
                 aria-hidden="true"
@@ -122,7 +120,7 @@ export default async function AdminOrderDetailPage({
               {formatPhone(order.phone)}
             </a>
           </div>
-          <div className="rounded-xl bg-brand-light/70 p-3">
+          <div className="rounded-xl bg-surface p-3">
             <div className="flex items-start justify-between gap-3">
               <p className="text-lg leading-relaxed text-ink">{fullAddress}</p>
               <CopyButton
@@ -134,7 +132,7 @@ export default async function AdminOrderDetailPage({
           </div>
           {order.memo && (
             <div>
-              <p className="text-base font-bold text-brand-dark">배송 메모</p>
+              <p className="text-base font-semibold text-muted">배송 메모</p>
               <p className="mt-0.5 text-lg text-ink">{order.memo}</p>
             </div>
           )}
@@ -143,24 +141,24 @@ export default async function AdminOrderDetailPage({
 
       {/* 결제 정보 */}
       <Card padding="sm">
-        <h2 className="text-lg font-bold text-brand-dark">결제 정보</h2>
+        <h2 className="text-lg font-bold text-ink">결제 정보</h2>
         <dl className="mt-2 flex flex-col gap-1.5 text-lg">
           <div className="flex justify-between gap-3">
-            <dt className="text-ink/60">결제 수단</dt>
-            <dd className="font-bold text-ink">
+            <dt className="text-muted">결제 수단</dt>
+            <dd className="font-semibold text-ink">
               {order.paymentMethod ?? "결제 전"}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-ink/60">결제 시각</dt>
-            <dd className="font-bold text-ink">
+            <dt className="text-muted">결제 시각</dt>
+            <dd className="font-semibold text-ink">
               {order.paidAt ? formatDateTime(order.paidAt) : "-"}
             </dd>
           </div>
           {(order.courier || order.trackingNo) && (
             <div className="flex justify-between gap-3">
-              <dt className="text-ink/60">운송장</dt>
-              <dd className="text-right font-bold text-ink">
+              <dt className="text-muted">운송장</dt>
+              <dd className="text-right font-semibold text-ink">
                 {order.courier ?? ""} {order.trackingNo ?? ""}
               </dd>
             </div>

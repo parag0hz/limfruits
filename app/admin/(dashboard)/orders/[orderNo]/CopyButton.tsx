@@ -53,14 +53,14 @@ export default function CopyButton({
       type="button"
       onClick={handleCopy}
       className={cn(
-        "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border-2 px-4 text-base font-bold transition-colors",
+        "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full px-4 text-base font-semibold transition-colors",
         copied
-          ? "border-brand-dark bg-brand text-white"
-          : "border-brand bg-white text-brand-dark hover:bg-brand-light",
+          ? "bg-brand text-white"
+          : "border border-hairline bg-white text-ink hover:bg-surface",
         className
       )}
     >
-      {copied ? "복사됨!" : label}
+      {copied ? "복사 완료" : label}
     </button>
   );
 }

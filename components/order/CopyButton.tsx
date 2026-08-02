@@ -27,7 +27,7 @@ export default function CopyButton({
       type="button"
       onClick={copy}
       aria-label={`${text} ${label}`}
-      className="inline-flex min-h-9 cursor-pointer items-center rounded-xl border-2 border-brand bg-white px-3 text-sm font-bold text-brand-dark transition-colors hover:bg-brand-light"
+      className="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-hairline bg-white px-3.5 text-sm font-medium text-ink transition-colors hover:bg-surface"
     >
       {copied ? '복사됨' : label}
     </button>

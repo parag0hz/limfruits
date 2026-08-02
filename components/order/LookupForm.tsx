@@ -28,6 +28,13 @@ interface LookupOrder {
   createdAt: string;
 }
 
+/** "나주배 가정용 3kg" — 주문 시점 스냅샷 기준 표시명 */
+function itemLabel(item: OrderItem): string {
+  return item.productName
+    ? `${item.productName} ${item.optionName}`
+    : item.optionName;
+}
+
 export default function LookupForm({
   initialOrderNo = '',
 }: {
@@ -91,7 +98,7 @@ export default function LookupForm({
             onChange={(e) => setOrderNo(e.target.value)}
             placeholder="LF-20260802-AB12CD34"
             autoComplete="off"
-            hint="주문 완료 화면에서 안내해 드린 번호예요."
+            hint="주문 완료 화면에서 안내드린 번호입니다."
           />
           <Input
             label="연락처"
@@ -108,7 +115,7 @@ export default function LookupForm({
           </Button>
           {error && (
             <p
-              className="rounded-xl bg-accent-red/10 px-4 py-3 text-sm font-medium text-accent-red"
+              className="rounded-xl bg-danger/5 px-4 py-3 text-sm font-medium text-danger"
               role="alert"
             >
               {error}
@@ -124,8 +131,8 @@ export default function LookupForm({
           <Card>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-ink/60">주문번호</p>
-                <p className="font-heading text-xl text-brand-dark">
+                <p className="text-sm text-muted">주문번호</p>
+                <p className="text-lg font-bold tracking-tight text-ink">
                   {order.orderNo}
                 </p>
               </div>
@@ -133,14 +140,14 @@ export default function LookupForm({
             </div>
 
             {order.status === 'PENDING' && (
-              <p className="mt-4 rounded-xl bg-accent-yellow/25 px-4 py-3 text-sm font-medium text-ink">
-                아직 결제가 완료되지 않은 주문이에요. 결제를 마치지 않으셨다면
+              <p className="mt-4 rounded-xl bg-surface px-4 py-3 text-sm font-medium text-ink">
+                아직 결제가 완료되지 않은 주문입니다. 결제를 마치지 않으셨다면
                 다시 주문해 주세요.
               </p>
             )}
             {order.status === 'CANCELED' && (
-              <p className="mt-4 rounded-xl bg-accent-red/10 px-4 py-3 text-sm font-medium text-accent-red">
-                취소된 주문이에요. 결제하신 금액은 결제수단에 따라 며칠 내로
+              <p className="mt-4 rounded-xl bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+                취소된 주문입니다. 결제하신 금액은 결제수단에 따라 며칠 내로
                 환불됩니다.
               </p>
             )}
@@ -156,20 +163,21 @@ export default function LookupForm({
           {/* 운송장 */}
           {(order.status === 'SHIPPING' || order.status === 'DONE') && (
             <Card tone="light">
-              <h3 className="font-heading text-lg text-brand-dark">
+              <h3 className="text-base font-bold tracking-tight text-ink">
                 배송 정보
               </h3>
               {order.courier && order.trackingNo ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{order.courier}</span>
-                  <span className="font-bold tracking-wide text-ink">
+                  <span className="font-semibold tracking-wide tabular-nums text-ink">
                     {order.trackingNo}
                   </span>
                   <CopyButton text={order.trackingNo} label="운송장 복사" />
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-ink/70">
-                  운송장 번호가 아직 등록되지 않았어요. 조금만 기다려 주세요.
+                <p className="mt-3 text-sm text-muted">
+                  운송장 번호가 아직 등록되지 않았습니다. 등록되는 대로
+                  확인하실 수 있습니다.
                 </p>
               )}
             </Card>
@@ -177,7 +185,9 @@ export default function LookupForm({
 
           {/* 주문 내역 */}
           <Card>
-            <h3 className="font-heading text-lg text-brand-dark">주문 내역</h3>
+            <h3 className="text-base font-bold tracking-tight text-ink">
+              주문 내역
+            </h3>
             <ul className="mt-3 flex flex-col gap-2">
               {order.items.map((item) => (
                 <li
@@ -185,24 +195,22 @@ export default function LookupForm({
                   className="flex items-center justify-between gap-3"
                 >
                   <span className="text-ink">
-                    {item.optionName}
-                    <span className="ml-1.5 text-ink/60">
-                      × {item.quantity}
-                    </span>
+                    {itemLabel(item)}
+                    <span className="ml-1.5 text-muted">× {item.quantity}</span>
                   </span>
-                  <span className="font-bold text-ink">
+                  <span className="font-semibold tabular-nums text-ink">
                     {formatWon(item.unitPrice * item.quantity)}
                   </span>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-between border-t-2 border-brand/15 pt-4">
-              <span className="font-bold text-ink">결제 금액</span>
-              <span className="text-xl font-bold text-brand-dark">
+            <div className="mt-4 flex items-center justify-between border-t border-hairline pt-4">
+              <span className="font-medium text-ink">결제 금액</span>
+              <span className="text-xl font-bold tabular-nums text-ink">
                 {formatWon(order.totalAmount)}
               </span>
             </div>
-            <dl className="mt-3 flex flex-col gap-1 text-sm text-ink/70">
+            <dl className="mt-3 flex flex-col gap-1 text-sm text-muted">
               <div className="flex justify-between">
                 <dt>주문일시</dt>
                 <dd>{formatDateTime(order.createdAt)}</dd>
@@ -224,13 +232,15 @@ export default function LookupForm({
 
           {/* 배송지 */}
           <Card>
-            <h3 className="font-heading text-lg text-brand-dark">배송지</h3>
+            <h3 className="text-base font-bold tracking-tight text-ink">
+              배송지
+            </h3>
             <p className="mt-3 text-ink">
               {order.customerName} · ({order.postcode}) {order.address1}
               {order.address2 && ` ${order.address2}`}
             </p>
             {order.memo && (
-              <p className="mt-1.5 text-sm text-ink/60">메모: {order.memo}</p>
+              <p className="mt-1.5 text-sm text-muted">메모: {order.memo}</p>
             )}
           </Card>
         </div>

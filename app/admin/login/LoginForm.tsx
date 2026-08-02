@@ -48,7 +48,7 @@ export default function LoginForm() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="admin-password"
-            className="text-lg font-bold text-brand-dark"
+            className="text-lg font-bold text-ink"
           >
             비밀번호
           </label>
@@ -66,17 +66,17 @@ export default function LoginForm() {
             placeholder="비밀번호 입력"
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "admin-password-error" : undefined}
-            className={`w-full rounded-xl border-2 bg-white px-4 py-4 text-xl text-ink placeholder:text-ink/35 focus:outline-none ${
+            className={`w-full rounded-xl border bg-white px-4 py-4 text-xl text-ink placeholder:text-muted focus:outline-none ${
               error
-                ? "border-accent-red focus:border-accent-red"
-                : "border-brand/35 focus:border-brand"
+                ? "border-danger focus:border-danger"
+                : "border-ink/20 focus:border-brand"
             }`}
           />
           {error && (
             <p
               id="admin-password-error"
               role="alert"
-              className="text-base font-bold text-accent-red"
+              className="text-base font-bold text-danger"
             >
               {error}
             </p>

@@ -77,13 +77,20 @@ export async function POST(req: Request) {
     return badRequest('죄송해요, 선택하신 옵션은 현재 품절이에요. 다른 옵션을 선택해 주세요.', 409);
   }
 
+  const product = await store.getProduct(option.productId);
+  if (!product || !product.isActive) {
+    return badRequest('지금은 판매하지 않는 상품이에요. 홈에서 다른 상품을 선택해 주세요.', 409);
+  }
+
   const amount = option.price * quantity;
-  const orderName =
-    quantity === 1 ? option.name : `${option.name} x ${quantity}`;
+  // 스마트스토어식 주문명: "나주배 가정용 3kg x 2"
+  const orderName = `${product.name} ${option.name} x ${quantity}`;
 
   const order = await store.createOrder({
     items: [
       {
+        productId: product.id,
+        productName: product.name,
         optionId: option.id,
         optionName: option.name,
         unitPrice: option.price,

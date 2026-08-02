@@ -32,13 +32,13 @@ export default function Textarea({
       <label
         htmlFor={textareaId}
         className={cn(
-          "text-sm font-bold text-brand-dark",
+          "text-sm font-medium text-ink",
           labelHidden && "sr-only"
         )}
       >
         {label}
         {required && (
-          <span aria-hidden="true" className="ml-0.5 text-accent-red">
+          <span aria-hidden="true" className="ml-0.5 text-danger">
             *
           </span>
         )}
@@ -50,21 +50,21 @@ export default function Textarea({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : hint ? hintId : undefined}
         className={cn(
-          "w-full resize-y rounded-xl border-2 bg-white px-4 py-3 text-base text-ink placeholder:text-ink/35 focus:outline-none",
+          "w-full resize-y rounded-xl border bg-white px-4 py-3 text-base text-ink transition-colors placeholder:text-muted/60 focus:outline-none",
           error
-            ? "border-accent-red focus:border-accent-red"
-            : "border-brand/35 focus:border-brand",
+            ? "border-danger focus:border-danger"
+            : "border-hairline focus:border-brand",
           className
         )}
         {...props}
       />
       {hint && !error && (
-        <p id={hintId} className="text-sm text-ink/60">
+        <p id={hintId} className="text-sm text-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-sm font-medium text-accent-red">
+        <p id={errorId} className="text-sm font-medium text-danger">
           {error}
         </p>
       )}

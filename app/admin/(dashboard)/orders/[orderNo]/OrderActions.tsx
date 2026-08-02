@@ -129,8 +129,8 @@ export default function OrderActions({
           role="status"
           className={
             message.type === "success"
-              ? "rounded-2xl border-2 border-brand bg-brand-light px-4 py-3 text-lg font-bold text-brand-dark"
-              : "rounded-2xl border-2 border-accent-red bg-accent-red/10 px-4 py-3 text-lg font-bold text-accent-red"
+              ? "rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-lg font-bold text-brand-dark"
+              : "rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-lg font-bold text-danger"
           }
         >
           {message.text}
@@ -140,7 +140,7 @@ export default function OrderActions({
       {/* 운송장 입력 → 발송 처리 */}
       {canShip && (
         <Card padding="sm">
-          <h2 className="text-lg font-bold text-brand-dark">
+          <h2 className="text-lg font-bold text-ink">
             {status === "SHIPPING" ? "운송장 수정" : "발송 처리"}
           </h2>
           <div className="mt-3 flex flex-col gap-3">
@@ -175,7 +175,7 @@ export default function OrderActions({
                   : "발송 처리"}
             </Button>
             {status === "PAID" && (
-              <p className="text-base text-ink/60">
+              <p className="text-base text-muted">
                 발송 처리하면 주문 상태가 &lsquo;배송중&rsquo;으로 바뀝니다.
               </p>
             )}
@@ -186,9 +186,9 @@ export default function OrderActions({
       {/* 배송완료 처리 */}
       {canComplete && (
         <Card padding="sm">
-          <h2 className="text-lg font-bold text-brand-dark">배송완료 처리</h2>
-          <p className="mt-1 text-base text-ink/60">
-            손님이 배를 잘 받으셨으면 눌러 주세요.
+          <h2 className="text-lg font-bold text-ink">배송완료 처리</h2>
+          <p className="mt-1 text-base text-muted">
+            손님이 상품을 받으셨으면 눌러 주세요.
           </p>
           <Button
             size="lg"
@@ -204,8 +204,8 @@ export default function OrderActions({
 
       {/* 결제취소 */}
       {canCancel && (
-        <Card padding="sm" className="border-accent-red/60">
-          <h2 className="text-lg font-bold text-accent-red">주문 취소</h2>
+        <Card padding="sm" className="border-danger/40">
+          <h2 className="text-lg font-bold text-danger">주문 취소</h2>
           {!cancelOpen ? (
             <Button
               size="lg"
@@ -258,12 +258,12 @@ export default function OrderActions({
       )}
 
       {status === "DONE" && (
-        <p className="rounded-2xl border-2 border-ink/15 bg-white px-4 py-3 text-center text-lg font-bold text-ink/50">
+        <p className="rounded-xl border border-hairline bg-surface px-4 py-3 text-center text-lg font-semibold text-muted">
           배송이 완료된 주문입니다.
         </p>
       )}
       {status === "CANCELED" && (
-        <p className="rounded-2xl border-2 border-ink/15 bg-white px-4 py-3 text-center text-lg font-bold text-ink/50">
+        <p className="rounded-xl border border-hairline bg-surface px-4 py-3 text-center text-lg font-semibold text-muted">
           취소된 주문입니다.
         </p>
       )}

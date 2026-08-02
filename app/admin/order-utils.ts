@@ -43,11 +43,16 @@ export function formatOrderTime(iso: string, now: Date = new Date()): string {
   return formatDateTime(iso);
 }
 
-/** 주문 항목 요약: "선물세트 5kg × 2", 여러 개면 " 외 N건" */
+/** "나주배" + "가정용 3kg" → "나주배 가정용 3kg" (스냅샷에 상품명이 없으면 옵션명만) */
+export function itemLabel(item: OrderItem): string {
+  return [item.productName, item.optionName].filter(Boolean).join(" ");
+}
+
+/** 주문 항목 요약: "나주배 가정용 3kg × 2", 여러 개면 " 외 N건" */
 export function summarizeItems(items: OrderItem[]): string {
   if (items.length === 0) return "-";
   const first = items[0];
-  const head = `${first.optionName} × ${first.quantity}`;
+  const head = `${itemLabel(first)} × ${first.quantity}`;
   if (items.length === 1) return head;
   return `${head} 외 ${items.length - 1}건`;
 }

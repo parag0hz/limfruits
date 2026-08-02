@@ -1,89 +1,102 @@
+import Image from "next/image";
 import Link from "next/link";
-import type { ProductOption } from "@/lib/types";
+import type { Product } from "@/lib/types";
 import { formatWon } from "@/lib/format";
 import Badge from "@/components/ui/Badge";
-import SectionTitle from "@/components/ui/SectionTitle";
 
-function OptionCard({ option }: { option: ProductOption }) {
-  const body = (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-heading text-xl text-ink">{option.name}</h3>
-        {option.soldOut && <Badge tone="red">품절</Badge>}
-      </div>
-      <p className="mt-1 text-sm text-ink/70">{option.description}</p>
+export interface CatalogItem {
+  product: Product;
+  /** 옵션 최저가. 옵션이 없으면 null */
+  minPrice: number | null;
+  /** 전 옵션 품절 (옵션이 하나라도 있고 모두 soldOut) */
+  soldOut: boolean;
+}
 
-      <p
-        className={`mt-4 text-2xl font-bold sm:text-[1.7rem] ${
-          option.soldOut ? "text-ink/40" : "text-brand-dark"
-        }`}
-      >
-        {formatWon(option.price)}
-      </p>
-      <p className="text-xs text-ink/50">배송비 포함</p>
-    </>
+/** 대표이미지가 없을 때 — 서피스 배경에 로고 일러스트를 작고 정갈하게 */
+function ImagePlaceholder() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-surface">
+      <Image
+        src="/logo.jpeg"
+        alt=""
+        width={667}
+        height={667}
+        className="h-16 w-16 rounded-2xl object-cover opacity-90"
+      />
+    </div>
   );
+}
 
-  if (option.soldOut) {
-    return (
-      <div className="flex h-full flex-col rounded-3xl border-2 border-ink/25 bg-white p-5">
-        {body}
-        <div className="flex-1" />
-        <button
-          type="button"
-          disabled
-          className="mt-4 inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-2xl border-2 border-ink/20 bg-ink/5 font-bold text-ink/40"
-        >
-          품절되었어요
-        </button>
-      </div>
-    );
-  }
-
+function ProductCard({ item }: { item: CatalogItem }) {
+  const { product, minPrice, soldOut } = item;
   return (
     <Link
-      href={`/order?option=${encodeURIComponent(option.id)}`}
-      className="group flex h-full flex-col rounded-3xl border-2 border-brand bg-white p-5 transition-colors hover:bg-brand-light/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      href={`/products/${encodeURIComponent(product.id)}`}
+      className="group flex flex-col overflow-hidden rounded-2xl border border-hairline bg-white transition-shadow hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
-      {body}
-      <div className="flex-1" />
-      <span className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border-2 border-brand-dark bg-brand font-bold text-white transition-colors group-hover:bg-brand-dark">
-        주문하기
-      </span>
+      <div className="relative aspect-square w-full overflow-hidden">
+        {product.imageUrl ? (
+          // 관리자가 입력하는 외부 URL이라 next/image 원격 도메인 설정 없이 img로 렌더
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          />
+        ) : (
+          <ImagePlaceholder />
+        )}
+        {soldOut && (
+          <Badge tone="red" className="absolute top-3 left-3">
+            품절
+          </Badge>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="text-base font-semibold text-ink">{product.name}</h3>
+        {product.subtitle && (
+          <p className="mt-0.5 line-clamp-2 text-sm text-muted">
+            {product.subtitle}
+          </p>
+        )}
+        <p className="mt-3 text-lg font-semibold tabular-nums text-ink">
+          {minPrice !== null ? (
+            <>
+              {formatWon(minPrice)}
+              <span className="font-medium text-muted">~</span>
+            </>
+          ) : (
+            <span className="text-base font-medium text-muted">준비 중</span>
+          )}
+        </p>
+      </div>
     </Link>
   );
 }
 
 /**
- * 상품 옵션 카드 그리드 — getStore().listOptions() 결과를 받아 렌더.
- * 품절 옵션은 뱃지 + 버튼 비활성, 판매 중이면 카드 전체가 /order?option=<id> 링크.
+ * 홈 상품 카탈로그 그리드 — listProducts() 결과 + 옵션 요약을 받아 렌더.
+ * 카드 전체가 /products/[id] 링크.
+ * auto-fit + 고정폭 카드 + justify-center 라 상품이 1~2개뿐이어도
+ * 남는 열 없이 중앙 정렬된다 (3개 이상이면 최대 3열).
  */
-export default function ProductGrid({ options }: { options: ProductOption[] }) {
-  return (
-    <section id="products" className="bg-brand-light">
-      <div className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 sm:py-16">
-        <SectionTitle
-          align="center"
-          sub="원하시는 구성을 고르시면 주문 페이지로 이동해요"
-        >
-          나주배 주문하기
-        </SectionTitle>
+export default function ProductGrid({ items }: { items: CatalogItem[] }) {
+  if (items.length === 0) {
+    return (
+      <p className="mx-auto max-w-md rounded-2xl border border-hairline bg-white p-8 text-center text-muted">
+        지금은 판매 중인 상품이 없습니다. 준비되는 대로 다시 안내드리겠습니다.
+      </p>
+    );
+  }
 
-        {options.length === 0 ? (
-          <p className="mt-8 rounded-2xl border-2 border-brand bg-white p-6 text-center text-ink/70">
-            지금은 판매 중인 상품이 없어요. 조금만 기다려 주세요.
-          </p>
-        ) : (
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {options.map((option) => (
-              <li key={option.id}>
-                <OptionCard option={option} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
+  return (
+    <ul className="mx-auto grid w-full max-w-4xl grid-cols-[repeat(auto-fit,minmax(15rem,19rem))] justify-center gap-5">
+      {items.map((item) => (
+        <li key={item.product.id}>
+          <ProductCard item={item} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

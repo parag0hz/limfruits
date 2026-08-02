@@ -7,8 +7,14 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/components/ui/cn";
-import { formatWon } from "@/lib/format";
+import PriceField, { parsePriceText } from "./PriceField";
 
+/**
+ * 옵션 한 개 인라인 편집 카드.
+ * - 이름/설명/가격은 '저장' 버튼으로 저장
+ * - 품절 토글은 누르면 즉시 저장
+ * - 삭제는 confirm 후 진행 (기존 주문 내역은 스냅샷이라 영향 없음)
+ */
 export default function OptionEditor({ option }: { option: ProductOption }) {
   const router = useRouter();
   const [name, setName] = useState(option.name);
@@ -17,14 +23,15 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
   const [soldOut, setSoldOut] = useState(option.soldOut);
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const price = Number(priceText.replace(/[^\d]/g, "") || "0");
-  const priceValid = Number.isInteger(price) && price > 0;
+  const { price, valid: priceValid } = parsePriceText(priceText);
+  const busy = saving || toggling || deleting;
 
   function showMessage(type: "success" | "error", text: string) {
     setMessage({ type, text });
@@ -34,9 +41,7 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
     }
   }
 
-  async function patchOption(
-    body: Record<string, unknown>
-  ): Promise<boolean> {
+  async function patchOption(body: Record<string, unknown>): Promise<boolean> {
     const res = await fetch(`/api/admin/options/${option.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -60,7 +65,7 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
   }
 
   async function handleSave() {
-    if (saving) return;
+    if (busy) return;
     if (name.trim() === "") {
       showMessage("error", "옵션 이름을 입력해 주세요.");
       return;
@@ -89,7 +94,7 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
   }
 
   async function handleToggleSoldOut() {
-    if (toggling) return;
+    if (busy) return;
     const next = !soldOut;
     setToggling(true);
     setMessage(null);
@@ -112,80 +117,80 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
     }
   }
 
+  async function handleDelete() {
+    if (busy) return;
+    const confirmed = window.confirm(
+      `'${option.name}' 옵션을 삭제할까요?\n기존 주문 내역은 사라지지 않습니다.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/options/${option.id}`, {
+        method: "DELETE",
+      });
+      if (res.status === 401) {
+        router.replace("/admin/login");
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        showMessage(
+          "error",
+          data?.error ?? "삭제에 실패했습니다. 다시 시도해 주세요."
+        );
+        return;
+      }
+      router.refresh();
+    } catch {
+      showMessage("error", "연결에 문제가 있습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <Card padding="sm" className={cn(soldOut && "border-accent-red/60")}>
+    <Card padding="sm" className={cn(soldOut && "border-danger/50")}>
       <div className="flex flex-col gap-3">
         <Input
           label="옵션 이름"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="예: 나주배 선물세트 5kg"
+          placeholder="예: 가정용 3kg"
         />
         <Input
           label="설명"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="예: 7~9과 · 명절 선물용"
+          placeholder="예: 5~7과 · 실속 가정용"
         />
-        <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor={`price-${option.id}`}
-            className="text-sm font-bold text-brand-dark"
-          >
-            가격 (배송비 포함)
-          </label>
-          <div className="relative">
-            <input
-              id={`price-${option.id}`}
-              value={priceText}
-              onChange={(e) =>
-                setPriceText(e.target.value.replace(/[^\d]/g, ""))
-              }
-              inputMode="numeric"
-              placeholder="27000"
-              aria-invalid={priceText !== "" && !priceValid ? true : undefined}
-              className={cn(
-                "w-full rounded-xl border-2 bg-white px-4 py-3 pr-12 text-right text-xl font-bold text-ink placeholder:font-normal placeholder:text-ink/35 focus:outline-none",
-                priceText !== "" && !priceValid
-                  ? "border-accent-red focus:border-accent-red"
-                  : "border-brand/35 focus:border-brand"
-              )}
-            />
-            <span
-              aria-hidden="true"
-              className="absolute top-1/2 right-4 -translate-y-1/2 text-lg font-bold text-ink/60"
-            >
-              원
-            </span>
-          </div>
-          {priceValid && (
-            <p className="text-base font-bold text-brand-dark">
-              {formatWon(price)}
-            </p>
-          )}
-        </div>
+        <PriceField
+          id={`price-${option.id}`}
+          value={priceText}
+          onChange={setPriceText}
+        />
 
         {/* 품절 토글 — 크고 명확하게, 누르면 즉시 저장 */}
         <button
           type="button"
           role="switch"
           aria-checked={soldOut}
-          disabled={toggling}
+          disabled={busy}
           onClick={handleToggleSoldOut}
           className={cn(
-            "flex min-h-14 w-full cursor-pointer items-center justify-between rounded-2xl border-2 px-4 text-lg font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+            "flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 text-left text-lg font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             soldOut
-              ? "border-accent-red bg-accent-red/10 text-accent-red"
-              : "border-brand bg-brand-light text-brand-dark"
+              ? "border-danger/50 bg-danger/5 text-danger"
+              : "border-brand/40 bg-brand/5 text-brand-dark"
           )}
         >
           <span>{soldOut ? "지금 품절 상태입니다" : "지금 판매 중입니다"}</span>
           <span
             className={cn(
-              "rounded-xl border-2 px-3 py-1.5 text-base",
-              soldOut
-                ? "border-accent-red bg-white"
-                : "border-brand-dark bg-white"
+              "shrink-0 rounded-full border bg-white px-4 py-1.5 text-base font-semibold",
+              soldOut ? "border-danger/50" : "border-brand/40"
             )}
           >
             {toggling
@@ -202,7 +207,7 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
             className={
               message.type === "success"
                 ? "text-lg font-bold text-brand-dark"
-                : "text-lg font-bold text-accent-red"
+                : "text-lg font-bold text-danger"
             }
           >
             {message.type === "success" ? "✓ " : ""}
@@ -210,14 +215,25 @@ export default function OptionEditor({ option }: { option: ProductOption }) {
           </p>
         )}
 
-        <Button
-          size="lg"
-          disabled={saving}
-          onClick={handleSave}
-          className="w-full text-xl"
-        >
-          {saving ? "저장 중..." : "저장"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="lg"
+            disabled={busy}
+            onClick={handleSave}
+            className="flex-1 text-xl"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </Button>
+          <Button
+            variant="danger"
+            size="lg"
+            disabled={busy}
+            onClick={handleDelete}
+            className="px-5 text-lg"
+          >
+            {deleting ? "삭제 중..." : "삭제"}
+          </Button>
+        </div>
       </div>
     </Card>
   );

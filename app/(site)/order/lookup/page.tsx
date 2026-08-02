@@ -16,7 +16,7 @@ export default async function OrderLookupPage({
   const initialOrderNo = typeof orderNo === 'string' ? orderNo : '';
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-10 sm:px-6 sm:py-12">
       <SectionTitle
         as="h1"
         sub="주문번호와 주문 시 입력하신 연락처를 입력해 주세요."

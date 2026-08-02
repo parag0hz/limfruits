@@ -1,34 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  /* 브랜드 컬러 (BRAND.md — 로고 실측) */
+  /* BRAND v2 — 프로페셔널 미니멀 팔레트 */
+  --color-bg: #ffffff;
+  --color-surface: #f5f6f4;
+  --color-ink: #171d14;
+  --color-muted: #6e7370;
   --color-brand: #417837;
   --color-brand-dark: #2f5928;
-  --color-brand-light: #eaf2e6;
-  --color-cream: #fbf8ef;
-  --color-accent-red: #de432d;
-  --color-accent-yellow: #f1d14a;
-  --color-accent-pink: #e8789c;
-  --color-ink: #2b3327;
+  --color-hairline: #e6e8e4;
+  --color-danger: #de432d;
 
-  /* 스캐폴드 호환 토큰 */
-  --color-background: #fbf8ef;
-  --color-foreground: #2b3327;
-
-  /* 타이포그래피 */
-  --font-sans: var(--font-noto-sans-kr), "Apple SD Gothic Neo",
-    "Malgun Gothic", "Segoe UI", sans-serif;
-  --font-heading: var(--font-jua), var(--font-noto-sans-kr),
-    "Apple SD Gothic Neo", sans-serif;
+  /* 타이포그래피 — Pretendard Variable (npm pretendard) */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI",
+    sans-serif;
 }
 
 body {
-  background-color: var(--color-cream);
+  background-color: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--color-accent-yellow) 55%, transparent);
+  background-color: color-mix(in srgb, var(--color-brand) 18%, transparent);
 }

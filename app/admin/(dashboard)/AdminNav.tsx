@@ -44,10 +44,10 @@ export default function AdminNav() {
           href={item.href}
           aria-current={isActive(item.href) ? "page" : undefined}
           className={cn(
-            "inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 px-3 text-lg font-bold transition-colors",
+            "inline-flex min-h-12 flex-1 items-center justify-center rounded-full px-3 text-lg font-bold transition-colors",
             isActive(item.href)
-              ? "border-brand-dark bg-brand text-white"
-              : "border-brand/40 bg-white text-brand-dark hover:bg-brand-light"
+              ? "bg-brand text-white"
+              : "border border-hairline bg-white text-ink hover:bg-surface"
           )}
         >
           {item.label}
@@ -57,7 +57,7 @@ export default function AdminNav() {
         type="button"
         onClick={handleLogout}
         disabled={loggingOut}
-        className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border-2 border-ink/25 bg-white px-3 text-base font-bold text-ink/60 transition-colors hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full border border-hairline bg-white px-3 text-base font-semibold text-muted transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loggingOut ? "..." : "로그아웃"}
       </button>

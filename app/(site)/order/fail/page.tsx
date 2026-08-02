@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-const buttonClass =
-  'inline-flex min-h-13 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 px-6 py-3 text-lg font-bold transition-colors';
+const buttonBase =
+  'inline-flex min-h-13 cursor-pointer items-center justify-center gap-2 rounded-full px-6 py-3 text-lg font-semibold transition-colors';
 
 /**
  * 우리 서버(/order/success)가 넘기는 내부 실패 코드 → 안내 문구.
@@ -33,6 +33,8 @@ const INTERNAL_FAIL_MESSAGES: Record<string, string> = {
     '주문 후 시간이 오래 지나 결제를 승인하지 않았어요. 처음부터 다시 주문해 주세요.',
   LIMFRUITS_SOLD_OUT:
     '죄송해요, 결제 진행 중에 상품이 품절되어 결제를 승인하지 않았어요. 다른 옵션으로 다시 주문해 주세요.',
+  LIMFRUITS_PRODUCT_INACTIVE:
+    '죄송해요, 결제 진행 중에 상품 판매가 중단되어 결제를 승인하지 않았어요. 자세한 내용은 판매자에게 문의해 주세요.',
   LIMFRUITS_PAYMENT_MISMATCH:
     '결제 정보가 주문 내용과 일치하지 않아 승인하지 않았어요. 문제가 계속되면 판매자에게 문의해 주세요.',
   LIMFRUITS_CONFIRM_ERROR:
@@ -63,18 +65,18 @@ export default async function OrderFailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-12 sm:px-6">
-      <SectionTitle as="h1">결제가 완료되지 않았어요</SectionTitle>
+      <SectionTitle as="h1">결제가 완료되지 않았습니다</SectionTitle>
 
       <Card>
         <div className="flex flex-col items-center gap-4 py-4 text-center">
           {/* 안내 아이콘 */}
           <span
             aria-hidden="true"
-            className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-accent-red bg-accent-red/10"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-danger/10"
           >
             <svg
               viewBox="0 0 24 24"
-              className="h-7 w-7 text-accent-red"
+              className="h-7 w-7 text-danger"
               fill="none"
               stroke="currentColor"
               strokeWidth="2.5"
@@ -86,31 +88,32 @@ export default async function OrderFailPage({
           </span>
           <p className="text-lg font-medium text-ink">{friendly}</p>
           {paymentWentThrough ? (
-            <p className="text-sm text-ink/60">
+            <p className="text-sm text-muted">
               결제 내역과 주문번호를 확인해 판매자에게 문의해 주시면 바로
-              처리해 드릴게요.
+              처리해 드리겠습니다.
             </p>
           ) : (
-            <p className="text-sm text-ink/60">
-              결제가 진행되지 않았으니 금액이 빠져나가지 않았어요. 잠시 후 다시
-              시도하시거나, 계속 문제가 생기면 판매자에게 문의해 주세요.
+            <p className="text-sm text-muted">
+              결제가 진행되지 않아 금액이 빠져나가지 않았습니다. 잠시 후 다시
+              시도하시거나, 문제가 계속되면 판매자에게 문의해 주세요.
             </p>
           )}
         </div>
       </Card>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Link
-          href="/order"
-          className={`${buttonClass} flex-1 border-brand-dark bg-brand text-white hover:bg-brand-dark`}
-        >
-          다시 시도하기
-        </Link>
+        {/* 주문은 상품 상세에서 시작하므로 홈(카탈로그)으로 안내 */}
         <Link
           href="/"
-          className={`${buttonClass} flex-1 border-brand bg-white text-brand-dark hover:bg-brand-light`}
+          className={`${buttonBase} flex-1 bg-brand text-white hover:bg-brand-dark`}
         >
-          홈으로 가기
+          다시 주문하기
+        </Link>
+        <Link
+          href="/order/lookup"
+          className={`${buttonBase} flex-1 bg-surface text-ink hover:bg-hairline/70`}
+        >
+          주문조회
         </Link>
       </div>
     </div>

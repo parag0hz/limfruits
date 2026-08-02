@@ -141,7 +141,7 @@ export default function AddressFields({
         autoComplete="address-line2"
       />
       {scriptError && (
-        <p className="text-sm font-medium text-accent-red">{scriptError}</p>
+        <p className="text-sm font-medium text-danger">{scriptError}</p>
       )}
     </div>
   );

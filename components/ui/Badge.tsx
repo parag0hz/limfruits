@@ -5,7 +5,7 @@ import { cn } from "./cn";
 export type BadgeTone =
   | "green" // 연그린 배경 (일반 강조)
   | "greenSolid" // 그린 채움 (신규주문 등 강한 강조)
-  | "yellow" // 대기/주의
+  | "yellow" // 대기/주의 (v2 팔레트에서는 뉴트럴 서피스로 표현)
   | "red" // 품절/취소
   | "gray"; // 완료/비활성
 
@@ -14,11 +14,11 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  green: "border-brand bg-brand-light text-brand-dark",
-  greenSolid: "border-brand-dark bg-brand text-white",
-  yellow: "border-accent-yellow bg-accent-yellow/25 text-ink",
-  red: "border-accent-red bg-accent-red/10 text-accent-red",
-  gray: "border-ink/25 bg-ink/5 text-ink/60",
+  green: "bg-brand/10 text-brand-dark",
+  greenSolid: "bg-brand text-white",
+  yellow: "border border-hairline bg-white text-ink",
+  red: "bg-danger/10 text-danger",
+  gray: "bg-surface text-muted",
 };
 
 export default function Badge({
@@ -29,7 +29,7 @@ export default function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border-2 px-2.5 py-0.5 text-sm font-bold whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium whitespace-nowrap",
         TONE_CLASSES[tone],
         className
       )}

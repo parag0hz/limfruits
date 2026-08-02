@@ -11,14 +11,14 @@ export interface OptionPickerProps {
   onSelect: (id: string) => void;
 }
 
-/** 상품 옵션 라디오 카드 목록 (품절 옵션은 선택 불가) */
+/** 상품 옵션 라디오 카드 목록 — 같은 상품의 옵션만 넘긴다 (품절 옵션은 선택 불가) */
 export default function OptionPicker({
   options,
   selectedId,
   onSelect,
 }: OptionPickerProps) {
   return (
-    <div role="radiogroup" aria-label="상품 옵션 선택" className="flex flex-col gap-3">
+    <div role="radiogroup" aria-label="상품 옵션 선택" className="flex flex-col gap-2.5">
       {options.map((option) => {
         const selected = option.id === selectedId;
         return (
@@ -30,12 +30,12 @@ export default function OptionPicker({
             disabled={option.soldOut}
             onClick={() => onSelect(option.id)}
             className={cn(
-              'flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors',
+              'flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors',
               selected
-                ? 'border-brand bg-brand-light'
-                : 'border-brand/30 bg-white hover:border-brand/60',
+                ? 'border-brand bg-brand/5'
+                : 'border-hairline bg-white hover:border-muted/40',
               option.soldOut &&
-                'cursor-not-allowed border-ink/15 bg-ink/5 opacity-70 hover:border-ink/15'
+                'cursor-not-allowed border-hairline bg-surface opacity-60 hover:border-hairline'
             )}
           >
             <span className="flex items-center gap-3">
@@ -43,8 +43,8 @@ export default function OptionPicker({
               <span
                 aria-hidden="true"
                 className={cn(
-                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
-                  selected ? 'border-brand bg-white' : 'border-ink/30 bg-white'
+                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border bg-white',
+                  selected ? 'border-brand' : 'border-muted/40'
                 )}
               >
                 {selected && (
@@ -52,9 +52,9 @@ export default function OptionPicker({
                 )}
               </span>
               <span className="flex flex-col">
-                <span className="font-bold text-ink">{option.name}</span>
+                <span className="font-medium text-ink">{option.name}</span>
                 {option.description && (
-                  <span className="text-sm text-ink/60">
+                  <span className="text-sm text-muted">
                     {option.description}
                   </span>
                 )}
@@ -64,7 +64,7 @@ export default function OptionPicker({
               {option.soldOut ? (
                 <Badge tone="red">품절</Badge>
               ) : (
-                <span className="text-lg font-bold text-brand-dark">
+                <span className="font-semibold tabular-nums text-ink">
                   {formatWon(option.price)}
                 </span>
               )}

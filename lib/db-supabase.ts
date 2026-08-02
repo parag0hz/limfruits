@@ -1,20 +1,39 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Order, OrderItem, OrderStatus, ProductOption } from './types';
-import { generateOrderNo, type Store } from './db';
+import type {
+  Order,
+  OrderItem,
+  OrderStatus,
+  Product,
+  ProductOption,
+} from './types';
+import { generateOrderNo, generateShortId, type Store } from './db';
 import { normalizePhone } from './format';
 
 /*
  * Supabase 저장소 — 서비스 롤 키로 서버 전용 접근.
  * 테이블 컬럼은 snake_case, 앱 타입은 camelCase → 아래 매퍼에서 변환.
  *
- *  product_options: id, name, description, price, sold_out, sort_order
+ *  products: id, name, subtitle, image_url, detail, is_active, sort_order
+ *  product_options: id, product_id(FK → products, ON DELETE CASCADE),
+ *                   name, description, price, sold_out, sort_order
  *  orders: id, order_no, status, customer_name, phone, postcode, address1,
  *          address2, memo, items(jsonb), total_amount, payment_key,
  *          payment_method, paid_at, courier, tracking_no, created_at
  */
 
+interface ProductRow {
+  id: string;
+  name: string;
+  subtitle: string;
+  image_url: string | null;
+  detail: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
 interface OptionRow {
   id: string;
+  product_id: string;
   name: string;
   description: string;
   price: number;
@@ -42,9 +61,22 @@ interface OrderRow {
   created_at: string;
 }
 
+function toProduct(row: ProductRow): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    subtitle: row.subtitle,
+    imageUrl: row.image_url,
+    detail: row.detail,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
+  };
+}
+
 function toOption(row: OptionRow): ProductOption {
   return {
     id: row.id,
+    productId: row.product_id,
     name: row.name,
     description: row.description,
     price: row.price,
@@ -100,12 +132,120 @@ function getClient(): SupabaseClient {
   return g.__limfruitsSupabase;
 }
 
+/** sortOrder 미지정 시 맨 뒤에 붙이기 위한 현재 최대값 + 1 */
+async function nextSortOrder(
+  table: 'products' | 'product_options',
+  productId?: string
+): Promise<number> {
+  let query = getClient()
+    .from(table)
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (productId !== undefined) {
+    query = query.eq('product_id', productId);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error(`정렬 순서 조회 실패: ${error.message}`);
+  const rows = data as { sort_order: number }[] | null;
+  return rows && rows.length > 0 ? rows[0].sort_order + 1 : 1;
+}
+
 class SupabaseStore implements Store {
-  async listOptions(): Promise<ProductOption[]> {
+  // ── 상품 ──────────────────────────────────────────────
+
+  async listProducts(includeInactive = false): Promise<Product[]> {
+    let query = getClient()
+      .from('products')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+    const { data, error } = await query;
+    if (error) throw new Error(`상품 목록 조회 실패: ${error.message}`);
+    return (data as ProductRow[]).map(toProduct);
+  }
+
+  async getProduct(id: string): Promise<Product | null> {
     const { data, error } = await getClient()
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`상품 조회 실패: ${error.message}`);
+    return data ? toProduct(data as ProductRow) : null;
+  }
+
+  async createProduct(input: {
+    name: string;
+    subtitle?: string;
+    imageUrl?: string | null;
+    detail?: string;
+    isActive?: boolean;
+    sortOrder?: number;
+  }): Promise<Product> {
+    const sortOrder = input.sortOrder ?? (await nextSortOrder('products'));
+    // 랜덤 id 유니크 충돌 시 재시도
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data, error } = await getClient()
+        .from('products')
+        .insert({
+          id: generateShortId(),
+          name: input.name,
+          subtitle: input.subtitle ?? '',
+          image_url: input.imageUrl ?? null,
+          detail: input.detail ?? '',
+          is_active: input.isActive ?? true,
+          sort_order: sortOrder,
+        })
+        .select('*')
+        .single();
+      if (!error) return toProduct(data as ProductRow);
+      if (error.code !== '23505') {
+        throw new Error(`상품 생성 실패: ${error.message}`);
+      }
+    }
+    throw new Error('상품 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+
+  async updateProduct(
+    id: string,
+    patch: Partial<Omit<Product, 'id'>>
+  ): Promise<void> {
+    const row: Partial<Omit<ProductRow, 'id'>> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.subtitle !== undefined) row.subtitle = patch.subtitle;
+    if (patch.imageUrl !== undefined) row.image_url = patch.imageUrl;
+    if (patch.detail !== undefined) row.detail = patch.detail;
+    if (patch.isActive !== undefined) row.is_active = patch.isActive;
+    if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
+    if (Object.keys(row).length === 0) return;
+
+    const { error } = await getClient()
+      .from('products')
+      .update(row)
+      .eq('id', id);
+    if (error) throw new Error(`상품 수정 실패: ${error.message}`);
+  }
+
+  /** 소속 옵션은 DB FK(ON DELETE CASCADE)가 함께 삭제 */
+  async deleteProduct(id: string): Promise<void> {
+    const { error } = await getClient().from('products').delete().eq('id', id);
+    if (error) throw new Error(`상품 삭제 실패: ${error.message}`);
+  }
+
+  // ── 옵션 ──────────────────────────────────────────────
+
+  async listOptions(productId?: string): Promise<ProductOption[]> {
+    let query = getClient()
       .from('product_options')
       .select('*')
       .order('sort_order', { ascending: true });
+    if (productId !== undefined) {
+      query = query.eq('product_id', productId);
+    }
+    const { data, error } = await query;
     if (error) throw new Error(`옵션 목록 조회 실패: ${error.message}`);
     return (data as OptionRow[]).map(toOption);
   }
@@ -120,11 +260,48 @@ class SupabaseStore implements Store {
     return data ? toOption(data as OptionRow) : null;
   }
 
+  async createOption(input: {
+    productId: string;
+    name: string;
+    description?: string;
+    price: number;
+    soldOut?: boolean;
+    sortOrder?: number;
+  }): Promise<ProductOption> {
+    const sortOrder =
+      input.sortOrder ??
+      (await nextSortOrder('product_options', input.productId));
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data, error } = await getClient()
+        .from('product_options')
+        .insert({
+          id: generateShortId(),
+          product_id: input.productId,
+          name: input.name,
+          description: input.description ?? '',
+          price: input.price,
+          sold_out: input.soldOut ?? false,
+          sort_order: sortOrder,
+        })
+        .select('*')
+        .single();
+      if (!error) return toOption(data as OptionRow);
+      if (error.code === '23503') {
+        // FK 위반 — 소속 상품 없음
+        throw new Error(`상품을 찾을 수 없습니다: ${input.productId}`);
+      }
+      if (error.code !== '23505') {
+        throw new Error(`옵션 생성 실패: ${error.message}`);
+      }
+    }
+    throw new Error('옵션 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+
   async updateOption(
     id: string,
-    patch: Partial<Omit<ProductOption, 'id'>>
+    patch: Partial<Omit<ProductOption, 'id' | 'productId'>>
   ): Promise<void> {
-    const row: Partial<OptionRow> = {};
+    const row: Partial<Omit<OptionRow, 'id' | 'product_id'>> = {};
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.description !== undefined) row.description = patch.description;
     if (patch.price !== undefined) row.price = patch.price;
@@ -138,6 +315,16 @@ class SupabaseStore implements Store {
       .eq('id', id);
     if (error) throw new Error(`옵션 수정 실패: ${error.message}`);
   }
+
+  async deleteOption(id: string): Promise<void> {
+    const { error } = await getClient()
+      .from('product_options')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(`옵션 삭제 실패: ${error.message}`);
+  }
+
+  // ── 주문 (v1 그대로) ──────────────────────────────────
 
   async createOrder(input: {
     items: OrderItem[];

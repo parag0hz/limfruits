@@ -1,16 +1,31 @@
--- 임과일 (limfruits) Supabase 스키마
--- Supabase 대시보드 > SQL Editor에 전체를 붙여넣고 실행하세요.
+-- 임과일 (limfruits) Supabase 스키마 v2 — 다중 상품 카탈로그
+-- 신규 설치 기준. Supabase 대시보드 > SQL Editor에 전체를 붙여넣고 실행하세요.
 -- 서비스 롤 키로만 접근합니다 (RLS enable + 정책 없음 = anon 접근 차단).
 
--- 상품 옵션
+-- 상품
+create table if not exists public.products (
+  id text primary key,              -- 'naju-pear' 같은 슬러그 또는 랜덤 id
+  name text not null,
+  subtitle text not null default '',
+  image_url text,                   -- null이면 앱에서 브랜드 일러스트 placeholder 렌더
+  detail text not null default '',  -- 상세 본문. 빈 줄로 문단 구분하는 플레인 텍스트
+  is_active boolean not null default true,
+  sort_order integer not null default 0
+);
+
+-- 상품 옵션 (상품 삭제 시 소속 옵션도 함께 삭제)
 create table if not exists public.product_options (
   id text primary key,
-  name text not null,
+  product_id text not null references public.products (id) on delete cascade,
+  name text not null,               -- "가정용 3kg" (상품에 소속되므로 상품명 접두 없음)
   description text not null default '',
-  price integer not null check (price >= 0),
+  price integer not null check (price > 0), -- SPEC: price 양의 정수 (API 검증과 동일)
   sold_out boolean not null default false,
   sort_order integer not null default 0
 );
+
+create index if not exists product_options_product_id_idx
+  on public.product_options (product_id);
 
 -- 주문
 create table if not exists public.orders (
@@ -24,7 +39,7 @@ create table if not exists public.orders (
   address1 text not null,
   address2 text not null default '',
   memo text not null default '',
-  items jsonb not null,           -- OrderItem[] 스냅샷
+  items jsonb not null,           -- OrderItem[] 스냅샷 (productId/productName/optionId/optionName/unitPrice/quantity)
   total_amount integer not null check (total_amount >= 0),
   payment_key text,
   payment_method text,
@@ -38,13 +53,33 @@ create index if not exists orders_status_idx on public.orders (status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 
 -- RLS: 켜기만 하고 정책은 만들지 않음 → 서비스 롤 키로만 접근 가능
+alter table public.products enable row level security;
 alter table public.product_options enable row level security;
 alter table public.orders enable row level security;
 
+-- 시드: 상품 1개 (상세 본문은 빈 줄로 문단 구분 — lib/db-memory.ts 시드와 동일하게 유지)
+insert into public.products (id, name, subtitle, image_url, detail, is_active, sort_order) values
+  (
+    'naju-pear',
+    '나주배',
+    '아삭하고 과즙 가득, 산지에서 바로 보내드려요',
+    null,
+    '나주는 일조량이 풍부하고 일교차가 큰 배 재배 적지입니다. 이곳에서 자란 배는 과육이 아삭하고 과즙이 많으며, 시원하고 깔끔한 단맛이 특징입니다.
+
+임과일은 전남 나주에서 과수원을 직접 운영합니다. 재배부터 수확, 선별, 포장까지 전 과정을 농장에서 관리하고, 주문 확인 후 산지에서 바로 발송합니다. 중간 유통 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.
+
+구성은 가정용 3kg·5kg, 선물세트 5kg·7.5kg 중에서 선택할 수 있습니다. 중량과 과수 규격은 각 옵션 설명에 표기되어 있습니다.
+
+받으신 배는 한 개씩 종이에 싸서 냉장 보관하면 오래 신선하게 유지됩니다. 상온에 둘 경우 서늘하고 통풍이 잘 되는 곳에 보관해 주세요.',
+    true,
+    1
+  )
+on conflict (id) do nothing;
+
 -- 시드: 옵션 4개 (가격은 placeholder — 실제 가격으로 수정 필요, PLACEHOLDERS.md 참고)
-insert into public.product_options (id, name, description, price, sold_out, sort_order) values
-  ('home-3kg',   '나주배 가정용 3kg',     '5~7과 · 실속 가정용',           19000, false, 1),
-  ('home-5kg',   '나주배 가정용 5kg',     '9~11과 · 온 가족 넉넉하게',      27000, false, 2),
-  ('gift-5kg',   '나주배 선물세트 5kg',   '7~9과 · 명절 선물용',           35000, false, 3),
-  ('gift-7-5kg', '나주배 선물세트 7.5kg', '9~12과 · 감사한 분께 넉넉하게', 45000, false, 4)
+insert into public.product_options (id, product_id, name, description, price, sold_out, sort_order) values
+  ('home-3kg',   'naju-pear', '가정용 3kg',     '5~7과 · 실속 가정용',    19000, false, 1),
+  ('home-5kg',   'naju-pear', '가정용 5kg',     '9~11과 · 넉넉한 가정용', 27000, false, 2),
+  ('gift-5kg',   'naju-pear', '선물세트 5kg',   '7~9과 · 명절 선물용',    35000, false, 3),
+  ('gift-7-5kg', 'naju-pear', '선물세트 7.5kg', '9~12과 · 대용량 선물세트', 45000, false, 4)
 on conflict (id) do nothing;
