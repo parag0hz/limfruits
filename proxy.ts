@@ -2,12 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_COOKIE, verifySessionToken } from "@/lib/auth";
 
 /**
- * /admin 하위 페이지 가드.
+ * /admin 하위 페이지 가드 (Next 16 proxy 파일 컨벤션 — 구 middleware.ts).
  * - /admin/login은 예외
  * - 세션 쿠키 검증 실패 시 /admin/login으로 redirect
  * - admin API 라우트는 각자 requireAdmin()으로 검증 (lib/auth.ts)
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/admin/login") {

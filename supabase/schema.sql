@@ -8,7 +8,8 @@ create table if not exists public.products (
   name text not null,
   subtitle text not null default '',
   image_url text,                   -- null이면 앱에서 브랜드 일러스트 placeholder 렌더
-  detail text not null default '',  -- 상세 본문. 빈 줄로 문단 구분하는 플레인 텍스트
+  detail text not null default '',  -- (구) 단순 본문. blocks 비어 있을 때의 폴백
+  blocks jsonb not null default '[]', -- v2.1 카드뉴스형 상세 블록 (DetailBlock[])
   is_active boolean not null default true,
   sort_order integer not null default 0
 );
@@ -57,8 +58,9 @@ alter table public.products enable row level security;
 alter table public.product_options enable row level security;
 alter table public.orders enable row level security;
 
--- 시드: 상품 1개 (상세 본문은 빈 줄로 문단 구분 — lib/db-memory.ts 시드와 동일하게 유지)
-insert into public.products (id, name, subtitle, image_url, detail, is_active, sort_order) values
+-- 시드: 상품 1개 (상세 본문·blocks 는 lib/db-memory.ts 시드와 동일하게 유지)
+-- blocks 의 "OO brix"·"O~O과"는 확인 후 교체할 placeholder (PLACEHOLDERS.md 참고)
+insert into public.products (id, name, subtitle, image_url, detail, blocks, is_active, sort_order) values
   (
     'naju-pear',
     '나주배',
@@ -71,15 +73,32 @@ insert into public.products (id, name, subtitle, image_url, detail, is_active, s
 구성은 가정용 3kg·5kg, 선물세트 5kg·7.5kg 중에서 선택할 수 있습니다. 중량과 과수 규격은 각 옵션 설명에 표기되어 있습니다.
 
 받으신 배는 한 개씩 종이에 싸서 냉장 보관하면 오래 신선하게 유지됩니다. 상온에 둘 경우 서늘하고 통풍이 잘 되는 곳에 보관해 주세요.',
+    '[
+      {"type": "heading", "label": "임과일 나주배", "title": "나주에서 수확한 그대로."},
+      {"type": "text", "body": "나주는 일조량이 풍부하고 토질이 배 재배에 알맞아 오래전부터 배 산지로 알려진 곳입니다.\n\n이곳에서 자란 배는 과육이 아삭하고 과즙이 풍부하며, 시원하고 깔끔한 단맛이 특징입니다."},
+      {"type": "point", "title": "산지 직송", "body": "농장에서 경매장, 도매상, 소매점을 거치는 일반적인 유통 대신 농장에서 택배로 바로 발송합니다. 중간 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다."},
+      {"type": "point", "title": "당도 관리", "body": "당도가 충분히 오른 시기를 확인한 뒤 수확해 발송합니다. 기준 당도는 OO brix 이상입니다."},
+      {"type": "point", "title": "재배부터 포장까지 직접", "body": "재배부터 수확, 선별, 포장까지 전 과정을 농장에서 직접 진행합니다. 주문 확인 후 산지에서 발송합니다."},
+      {"type": "specs", "title": "상품 구성", "rows": [
+        {"k": "가정용 3kg", "v": "O~O과"},
+        {"k": "가정용 5kg", "v": "O~O과"},
+        {"k": "선물세트 5kg", "v": "O~O과"},
+        {"k": "선물세트 7.5kg", "v": "O~O과"}
+      ]},
+      {"type": "notice", "title": "포장·배송 안내", "body": "배 하나하나 완충재로 감싸 배송 중 충격을 줄입니다. 수확 후 신속히 발송하며, 농산물 특성상 크기와 모양은 사진과 다소 다를 수 있습니다."},
+      {"type": "heading", "label": "생산지", "title": "전라남도 나주시"},
+      {"type": "text", "body": "전라남도 나주시 덕룡로 33-8 (풍천대봉감농원)에서 재배하고 발송합니다."}
+    ]'::jsonb,
     true,
     1
   )
 on conflict (id) do nothing;
 
--- 시드: 옵션 4개 (가격은 placeholder — 실제 가격으로 수정 필요, PLACEHOLDERS.md 참고)
+-- 시드: 옵션 4개 (가격·"O~O과" 과수는 placeholder — 실제 값으로 수정 필요, PLACEHOLDERS.md 참고.
+-- 과수는 상세 블록 "상품 구성" 표의 placeholder 와 동일하게 유지)
 insert into public.product_options (id, product_id, name, description, price, sold_out, sort_order) values
-  ('home-3kg',   'naju-pear', '가정용 3kg',     '5~7과 · 실속 가정용',    19000, false, 1),
-  ('home-5kg',   'naju-pear', '가정용 5kg',     '9~11과 · 넉넉한 가정용', 27000, false, 2),
-  ('gift-5kg',   'naju-pear', '선물세트 5kg',   '7~9과 · 명절 선물용',    35000, false, 3),
-  ('gift-7-5kg', 'naju-pear', '선물세트 7.5kg', '9~12과 · 대용량 선물세트', 45000, false, 4)
+  ('home-3kg',   'naju-pear', '가정용 3kg',     'O~O과 · 실속 가정용',    19000, false, 1),
+  ('home-5kg',   'naju-pear', '가정용 5kg',     'O~O과 · 넉넉한 가정용', 27000, false, 2),
+  ('gift-5kg',   'naju-pear', '선물세트 5kg',   'O~O과 · 명절 선물용',    35000, false, 3),
+  ('gift-7-5kg', 'naju-pear', '선물세트 7.5kg', 'O~O과 · 대용량 선물세트', 45000, false, 4)
 on conflict (id) do nothing;

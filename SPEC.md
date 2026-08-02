@@ -51,7 +51,8 @@ export interface Product {
   name: string;            // "나주배"
   subtitle: string;        // "아삭하고 과즙 가득, 산지에서 바로 보내드려요"
   imageUrl: string | null; // null이면 브랜드 일러스트 placeholder 렌더
-  detail: string;          // 상세 본문. 빈 줄로 문단 구분하는 플레인 텍스트
+  detail: string;          // (구) 단순 본문. blocks 비어 있을 때의 폴백
+  blocks: DetailBlock[];   // v2.1: 카드뉴스형 상세페이지 블록 (jsonb, 기본 [])
   isActive: boolean;       // false면 카탈로그/상세 비노출 (admin에서만 보임)
   sortOrder: number;
 }
@@ -122,3 +123,62 @@ export function getStore(): Store;
 ## 공통 컨벤션 — v1 그대로
 
 server component 기본, 금액은 원 단위 정수, 모바일 퍼스트(특히 admin은 장년층 기준 큰 글씨·44px+ 터치 타깃), 에러는 한국어로 친절하게, placeholder는 `PLACEHOLDERS.md`에 기록.
+
+---
+
+# v2.1 부록 — 카드뉴스형 상세페이지 블록
+
+상품 상세를 스마트스토어 상세페이지처럼 **스크롤형 스토리(카드뉴스)**로 구성한다. 단, 비주얼은 참고 이미지의 핑크 감성이 아니라 **BRAND v2 프로페셔널 미니멀 톤**으로 렌더링한다 (콘텐츠 구성만 차용).
+
+## DetailBlock 타입 — `lib/types.ts`
+
+```ts
+export type DetailBlock =
+  | { type: 'heading'; label?: string; title: string }                          // 섹션 라벨(pill) + 큰 제목
+  | { type: 'text'; body: string }                                              // 문단 (빈 줄 = 문단 구분)
+  | { type: 'image'; url: string; caption?: string }                            // 풀폭 이미지 (긴 상세이미지 재사용 가능)
+  | { type: 'point'; title: string; body: string; imageUrl?: string }           // Point N — 렌더 시 자동 번호
+  | { type: 'badge'; title: string; body: string; imageUrl?: string }           // 인증·수상 배지
+  | { type: 'specs'; title?: string; rows: { k: string; v: string }[] }         // 규격/구성 표
+  | { type: 'notice'; title: string; body: string };                            // 강조 안내 박스 (포장/예약 등)
+```
+
+## 렌더링 — `components/product/DetailBlocks.tsx` (storefront 소유)
+
+- `/products/[id]` 구매 패널 아래에 `blocks` 순서대로 렌더. `blocks` 비면 기존 `detail` 문단 폴백
+- 카드뉴스 느낌: 섹션 라벨은 중앙 pill, 제목은 크게(tracking-tight), 넉넉한 세로 여백, heading 단위로 white/surface 배경 교차. point 는 자동 번호(01, 02…) + 이미지 있으면 좌우 교차 배치. specs 는 헤어라인 표. notice 는 surface 박스
+- 이미지는 next/image 원격 URL 대신 일반 `<img>` + `loading="lazy"` (임의 도메인 URL 허용을 위해). `url` 은 `https://` 또는 `/` 로 시작하는 것만 렌더 (javascript: 등 차단)
+- 텍스트는 전부 React 텍스트 노드로 (dangerouslySetInnerHTML 금지)
+
+## 관리자 편집 — `/admin/products/[id]` (admin 소유)
+
+- "상세페이지 구성" 섹션 추가: 블록 목록(타입 한글 라벨: 제목/문단/사진/포인트/인증 배지/규격 표/안내 박스) — 각 블록 카드에 필드 편집, ↑↓ 순서 이동, 삭제, "+ 블록 추가"(타입 선택). 저장 시 blocks 배열 전체를 PATCH
+- 장년층 기준: 타입별 입력 필드에 예시 placeholder, 저장 성공 피드백 명확히
+
+## API·검증
+
+- `PATCH /api/admin/products/[id]` body 에 `blocks?: DetailBlock[]` 허용 — 서버 검증: 배열 최대 60개, 각 블록 type 화이트리스트, 필수 필드 존재, 문자열 길이 상한(제목 200자/본문 5000자/url 1000자), image url 은 https:// 또는 / 시작만 허용. specs rows 최대 30개
+- `POST /api/admin/products` 는 blocks 없이 생성(기본 [])
+
+## 저장
+
+- 메모리: Product.blocks 배열 그대로. Supabase: `products.blocks jsonb not null default '[]'`
+- 시드 (data 소유, 두 스토어 동일): **나주배 한 상품만.** 사용자의 옛 스마트스토어 상세페이지는 **형식 참고용**이다 — 거기 나온 복숭아 콘텐츠(품종·brix·과수·인증)를 나주배에 옮겨 적지 마라. 나주배 blocks 구성:
+  - heading(label "임과일 나주배", title 짧고 단정하게) + text: 나주 지역이 배 산지로 알려진 이유(일조량·토질 수준의 일반 사실만)와 아삭한 식감·풍부한 과즙 소개. 품종명·당도 등 확인 안 된 구체 수치는 쓰지 말 것
+  - point 3개: ① 산지 직송 — 일반적인 다단계 유통(농장→경매→도매→소매) 대신 농장에서 택배로 바로 발송 ② 당도 관리 — 수확 시기를 확인해 발송한다는 내용, 구체 수치 자리는 "OO brix" placeholder ③ 재배부터 수확·선별·포장까지 직접
+  - specs(title "상품 구성"): 기존 옵션 4개(가정용 3kg·5kg / 선물세트 5kg·7.5kg)와 과수 placeholder("O~O과")
+  - notice: 포장·배송 — 완충 포장, 수확 후 신속 발송, 농산물 특성상 크기·모양 상이 가능 고지
+  - heading+text: 생산지 — 전라남도 나주시 덕룡로 33-8 (풍천대봉감농원)
+  - 인증 배지(GAP 등)는 시드에 넣지 않는다 — 배 상품에 해당하는지 미확인. badge 블록 타입만 제공하고, PLACEHOLDERS.md 에 "GAP·로컬푸드 인증을 배에도 표기할지 확인 후 관리자에서 badge 블록 추가" 항목을 남길 것
+  - 사진 자리(image 블록)는 시드에서 생략, PLACEHOLDERS.md 에 기록
+- 기존 주문·옵션 로직은 변경 없음
+
+## 파일 소유권 (v2.1 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `supabase/schema.sql` |
+| storefront | `components/product/**`, `app/(site)/products/**` |
+| admin | `app/admin/**`, `app/api/admin/**` |
+
+그 외 파일은 읽기 전용(변경 요청은 `notes/<이름>.md`). `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지.

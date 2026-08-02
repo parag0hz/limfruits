@@ -5,6 +5,7 @@ import ProductForm from "./ProductForm";
 import OptionEditor from "./OptionEditor";
 import AddOptionForm from "./AddOptionForm";
 import DeleteProductButton from "./DeleteProductButton";
+import DetailBlocksEditor from "./DetailBlocksEditor";
 
 export const metadata: Metadata = {
   title: "상품 편집",
@@ -92,6 +93,47 @@ export default async function AdminProductEditPage({
 
         <div className="mt-4">
           <AddOptionForm productId={product.id} />
+        </div>
+      </section>
+
+      {/* v2.1 카드뉴스형 상세페이지 블록 편집 */}
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-bold tracking-tight text-ink">
+            상세페이지 구성
+          </h2>
+          {product.isActive ? (
+            <a
+              href={`/products/${encodeURIComponent(product.id)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-hairline bg-white px-5 text-base font-semibold text-ink transition-colors hover:bg-surface"
+            >
+              미리보기 (새 창)
+            </a>
+          ) : (
+            // 숨김 상품은 손님 상세 화면이 404라 미리보기를 열 수 없다
+            <span
+              aria-disabled="true"
+              className="inline-flex min-h-11 cursor-not-allowed items-center justify-center rounded-full border border-hairline bg-surface px-5 text-base font-semibold text-muted"
+            >
+              미리보기 (새 창)
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-base text-muted">
+          손님이 보는 상세 화면을 블록(카드) 단위로 만듭니다. 위에서 아래
+          순서대로 보입니다.{" "}
+          {product.isActive
+            ? "미리보기는 저장한 내용 기준으로 열립니다."
+            : "지금은 숨김 상태라 미리보기를 열 수 없습니다. 위 상품 정보에서 '보이게 하기'를 누르면 열 수 있습니다."}
+        </p>
+
+        <div className="mt-3">
+          <DetailBlocksEditor
+            productId={product.id}
+            initialBlocks={product.blocks}
+          />
         </div>
       </section>
 

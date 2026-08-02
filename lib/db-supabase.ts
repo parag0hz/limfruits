@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  DetailBlock,
   Order,
   OrderItem,
   OrderStatus,
@@ -8,12 +9,13 @@ import type {
 } from './types';
 import { generateOrderNo, generateShortId, type Store } from './db';
 import { normalizePhone } from './format';
+import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
 
 /*
  * Supabase 저장소 — 서비스 롤 키로 서버 전용 접근.
  * 테이블 컬럼은 snake_case, 앱 타입은 camelCase → 아래 매퍼에서 변환.
  *
- *  products: id, name, subtitle, image_url, detail, is_active, sort_order
+ *  products: id, name, subtitle, image_url, detail, blocks(jsonb), is_active, sort_order
  *  product_options: id, product_id(FK → products, ON DELETE CASCADE),
  *                   name, description, price, sold_out, sort_order
  *  orders: id, order_no, status, customer_name, phone, postcode, address1,
@@ -27,6 +29,7 @@ interface ProductRow {
   subtitle: string;
   image_url: string | null;
   detail: string;
+  blocks: DetailBlock[] | unknown; // jsonb — 대시보드 직접 수정 가능성 있어 읽기 시 정화
   is_active: boolean;
   sort_order: number;
 }
@@ -68,6 +71,9 @@ function toProduct(row: ProductRow): Product {
     subtitle: row.subtitle,
     imageUrl: row.image_url,
     detail: row.detail,
+    // 앱 API 는 저장 전에 검증하지만, Supabase 대시보드에서 직접 수정된 jsonb 는
+    // 형태 보장이 없다. 읽기 시점에 정화해 형식이 어긋난 블록은 버린다.
+    blocks: sanitizeDetailBlocks(row.blocks),
     isActive: row.is_active,
     sortOrder: row.sort_order,
   };
@@ -182,6 +188,7 @@ class SupabaseStore implements Store {
     subtitle?: string;
     imageUrl?: string | null;
     detail?: string;
+    blocks?: DetailBlock[];
     isActive?: boolean;
     sortOrder?: number;
   }): Promise<Product> {
@@ -196,6 +203,7 @@ class SupabaseStore implements Store {
           subtitle: input.subtitle ?? '',
           image_url: input.imageUrl ?? null,
           detail: input.detail ?? '',
+          blocks: input.blocks ?? [],
           is_active: input.isActive ?? true,
           sort_order: sortOrder,
         })
@@ -218,6 +226,7 @@ class SupabaseStore implements Store {
     if (patch.subtitle !== undefined) row.subtitle = patch.subtitle;
     if (patch.imageUrl !== undefined) row.image_url = patch.imageUrl;
     if (patch.detail !== undefined) row.detail = patch.detail;
+    if (patch.blocks !== undefined) row.blocks = patch.blocks;
     if (patch.isActive !== undefined) row.is_active = patch.isActive;
     if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
     if (Object.keys(row).length === 0) return;

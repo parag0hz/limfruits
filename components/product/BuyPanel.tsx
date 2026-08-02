@@ -221,9 +221,9 @@ export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
 }
 
 /**
- * 모바일 하단 구매 바 (client) — 상세 페이지 컨테이너의 마지막 요소로 배치한다.
+ * 모바일 하단 구매 바 (client) — 상세 페이지의 풀폭 래퍼 마지막 요소로 배치한다.
  * fixed가 아니라 sticky라 문서 끝까지 내리면 푸터가 온전히 드러난다.
- * (OrderForm의 하단 결제 바와 같은 방식)
+ * (OrderForm의 하단 결제 바와 같은 방식. 부모가 풀폭이므로 네거티브 마진 불필요)
  */
 export function BuyBar() {
   const { options, selected, quantity, total, allSoldOut, goToOrder } =
@@ -232,7 +232,7 @@ export function BuyBar() {
   if (options.length === 0) return null;
 
   return (
-    <div className="sticky bottom-0 z-40 -mx-4 mt-10 border-t border-hairline bg-white/95 backdrop-blur-md sm:-mx-6 lg:hidden">
+    <div className="sticky bottom-0 z-40 mt-10 border-t border-hairline bg-white/95 backdrop-blur-md lg:hidden">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="truncate text-xs text-muted">

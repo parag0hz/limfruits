@@ -13,7 +13,7 @@ export default function Footer() {
         <dl className="mt-6 grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm text-muted sm:grid-cols-2">
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">상호</dt>
-            <dd>OOO농원 (대표 OOO)</dd>
+            <dd>풍천대봉감농원 (대표 OOO)</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">사업자등록번호</dt>
@@ -36,7 +36,7 @@ export default function Footer() {
           </div>
           <div className="flex gap-2 sm:col-span-2">
             <dt className="shrink-0 font-medium">농장주소</dt>
-            <dd>전라남도 나주시 OOO읍 OOO길 OO</dd>
+            <dd>전라남도 나주시 덕룡로 33-8</dd>
           </div>
         </dl>
 

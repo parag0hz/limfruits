@@ -1,4 +1,5 @@
 import type {
+  DetailBlock,
   Order,
   OrderItem,
   OrderStatus,
@@ -17,9 +18,11 @@ export interface Store {
     subtitle?: string;
     imageUrl?: string | null;
     detail?: string;
+    blocks?: DetailBlock[]; // 생략 시 [] (admin 생성 API는 blocks 없이 생성)
     isActive?: boolean;
     sortOrder?: number; // 생략 시 맨 뒤에 추가
   }): Promise<Product>;
+  // patch 에 blocks 포함 가능 (v2.1 — Product.blocks 가 Partial 로 그대로 허용됨)
   updateProduct(id: string, patch: Partial<Omit<Product, 'id'>>): Promise<void>;
   deleteProduct(id: string): Promise<void>; // 소속 옵션 cascade 삭제
   // 옵션

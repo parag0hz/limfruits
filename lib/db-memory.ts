@@ -1,5 +1,11 @@
 import { randomUUID } from 'crypto';
-import type { Order, OrderStatus, Product, ProductOption } from './types';
+import type {
+  DetailBlock,
+  Order,
+  OrderStatus,
+  Product,
+  ProductOption,
+} from './types';
 import { generateOrderNo, generateShortId, type Store } from './db';
 import { normalizePhone } from './format';
 
@@ -21,7 +27,64 @@ const NAJU_PEAR_DETAIL = [
   '받으신 배는 한 개씩 종이에 싸서 냉장 보관하면 오래 신선하게 유지됩니다. 상온에 둘 경우 서늘하고 통풍이 잘 되는 곳에 보관해 주세요.',
 ].join('\n\n');
 
-/** SPEC v2 시드 상품 1개 */
+/**
+ * v2.1 카드뉴스형 상세 블록 시드 — SPEC v2.1 부록 "저장 > 시드" 절 그대로.
+ * 확인 안 된 구체 수치는 placeholder("OO brix", "O~O과")로 두고 PLACEHOLDERS.md에 기록.
+ * 인증 배지(badge)·사진(image) 블록은 시드에서 생략 (PLACEHOLDERS.md 참고).
+ * supabase/schema.sql 시드와 반드시 동일하게 유지할 것.
+ */
+const NAJU_PEAR_BLOCKS: DetailBlock[] = [
+  {
+    type: 'heading',
+    label: '임과일 나주배',
+    title: '나주에서 수확한 그대로.',
+  },
+  {
+    type: 'text',
+    body: '나주는 일조량이 풍부하고 토질이 배 재배에 알맞아 오래전부터 배 산지로 알려진 곳입니다.\n\n이곳에서 자란 배는 과육이 아삭하고 과즙이 풍부하며, 시원하고 깔끔한 단맛이 특징입니다.',
+  },
+  {
+    type: 'point',
+    title: '산지 직송',
+    body: '농장에서 경매장, 도매상, 소매점을 거치는 일반적인 유통 대신 농장에서 택배로 바로 발송합니다. 중간 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.',
+  },
+  {
+    type: 'point',
+    title: '당도 관리',
+    body: '당도가 충분히 오른 시기를 확인한 뒤 수확해 발송합니다. 기준 당도는 OO brix 이상입니다.',
+  },
+  {
+    type: 'point',
+    title: '재배부터 포장까지 직접',
+    body: '재배부터 수확, 선별, 포장까지 전 과정을 농장에서 직접 진행합니다. 주문 확인 후 산지에서 발송합니다.',
+  },
+  {
+    type: 'specs',
+    title: '상품 구성',
+    rows: [
+      { k: '가정용 3kg', v: 'O~O과' },
+      { k: '가정용 5kg', v: 'O~O과' },
+      { k: '선물세트 5kg', v: 'O~O과' },
+      { k: '선물세트 7.5kg', v: 'O~O과' },
+    ],
+  },
+  {
+    type: 'notice',
+    title: '포장·배송 안내',
+    body: '배 하나하나 완충재로 감싸 배송 중 충격을 줄입니다. 수확 후 신속히 발송하며, 농산물 특성상 크기와 모양은 사진과 다소 다를 수 있습니다.',
+  },
+  {
+    type: 'heading',
+    label: '생산지',
+    title: '전라남도 나주시',
+  },
+  {
+    type: 'text',
+    body: '전라남도 나주시 덕룡로 33-8 (풍천대봉감농원)에서 재배하고 발송합니다.',
+  },
+];
+
+/** SPEC v2 시드 상품 1개 — 나주배만 */
 function seedProducts(): Product[] {
   return [
     {
@@ -30,20 +93,26 @@ function seedProducts(): Product[] {
       subtitle: '아삭하고 과즙 가득, 산지에서 바로 보내드려요',
       imageUrl: null,
       detail: NAJU_PEAR_DETAIL,
+      blocks: NAJU_PEAR_BLOCKS,
       isActive: true,
       sortOrder: 1,
     },
   ];
 }
 
-/** SPEC 시드 옵션 4개 — 상품 소속이므로 이름에서 "나주배" 접두 제거. 가격은 placeholder (PLACEHOLDERS.md 참고) */
+/**
+ * SPEC 시드 옵션 4개 — 상품 소속이므로 이름에서 "나주배" 접두 제거.
+ * 가격·과수는 placeholder (PLACEHOLDERS.md 참고). 과수는 상세 블록의
+ * "상품 구성" 표(O~O과)와 같은 placeholder 로 맞춰 확인 전 임의 수치가
+ * 실제 정보처럼 보이지 않게 한다.
+ */
 function seedOptions(): ProductOption[] {
   return [
     {
       id: 'home-3kg',
       productId: 'naju-pear',
       name: '가정용 3kg',
-      description: '5~7과 · 실속 가정용',
+      description: 'O~O과 · 실속 가정용',
       price: 19000,
       soldOut: false,
       sortOrder: 1,
@@ -52,7 +121,7 @@ function seedOptions(): ProductOption[] {
       id: 'home-5kg',
       productId: 'naju-pear',
       name: '가정용 5kg',
-      description: '9~11과 · 넉넉한 가정용',
+      description: 'O~O과 · 넉넉한 가정용',
       price: 27000,
       soldOut: false,
       sortOrder: 2,
@@ -61,7 +130,7 @@ function seedOptions(): ProductOption[] {
       id: 'gift-5kg',
       productId: 'naju-pear',
       name: '선물세트 5kg',
-      description: '7~9과 · 명절 선물용',
+      description: 'O~O과 · 명절 선물용',
       price: 35000,
       soldOut: false,
       sortOrder: 3,
@@ -70,7 +139,7 @@ function seedOptions(): ProductOption[] {
       id: 'gift-7-5kg',
       productId: 'naju-pear',
       name: '선물세트 7.5kg',
-      description: '9~12과 · 대용량 선물세트',
+      description: 'O~O과 · 대용량 선물세트',
       price: 45000,
       soldOut: false,
       sortOrder: 4,
@@ -145,19 +214,24 @@ function seedOrders(): Order[] {
   return [paidOrder, shippingOrder];
 }
 
-/** globalThis 싱글턴 — dev HMR에도 데이터 유지. v2 스키마라 키를 올림(구 v1 데이터와 충돌 방지) */
+/**
+ * globalThis 싱글턴 — dev HMR에도 데이터 유지.
+ * 스키마가 바뀔 때마다 키를 올린다(구 스키마 데이터와 충돌 방지).
+ * v2.1: Product.blocks 추가 — blocks 없는 v2 상품 객체가 남아 있으면
+ * product.blocks.length 접근에서 죽으므로 키를 올려 새로 시드한다.
+ */
 function getData(): MemoryData {
   const g = globalThis as typeof globalThis & {
-    __limfruitsMemoryDbV2?: MemoryData;
+    __limfruitsMemoryDbV2_1?: MemoryData;
   };
-  if (!g.__limfruitsMemoryDbV2) {
-    g.__limfruitsMemoryDbV2 = {
+  if (!g.__limfruitsMemoryDbV2_1) {
+    g.__limfruitsMemoryDbV2_1 = {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
     };
   }
-  return g.__limfruitsMemoryDbV2;
+  return g.__limfruitsMemoryDbV2_1;
 }
 
 function clone<T>(value: T): T {
@@ -200,6 +274,7 @@ class MemoryStore implements Store {
     subtitle?: string;
     imageUrl?: string | null;
     detail?: string;
+    blocks?: DetailBlock[];
     isActive?: boolean;
     sortOrder?: number;
   }): Promise<Product> {
@@ -210,6 +285,7 @@ class MemoryStore implements Store {
       subtitle: input.subtitle ?? '',
       imageUrl: input.imageUrl ?? null,
       detail: input.detail ?? '',
+      blocks: input.blocks ? clone(input.blocks) : [],
       isActive: input.isActive ?? true,
       sortOrder: input.sortOrder ?? nextSortOrder(data.products),
     };
@@ -229,6 +305,7 @@ class MemoryStore implements Store {
     if (patch.subtitle !== undefined) product.subtitle = patch.subtitle;
     if (patch.imageUrl !== undefined) product.imageUrl = patch.imageUrl;
     if (patch.detail !== undefined) product.detail = patch.detail;
+    if (patch.blocks !== undefined) product.blocks = clone(patch.blocks);
     if (patch.isActive !== undefined) product.isActive = patch.isActive;
     if (patch.sortOrder !== undefined) product.sortOrder = patch.sortOrder;
   }

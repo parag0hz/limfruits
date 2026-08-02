@@ -1,12 +1,23 @@
 export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPING' | 'DONE' | 'CANCELED';
 // PENDING 결제대기 / PAID 결제완료(신규주문) / SHIPPING 배송중 / DONE 배송완료 / CANCELED 취소
 
+/** v2.1 카드뉴스형 상세페이지 블록 — SPEC v2.1 부록 참고 */
+export type DetailBlock =
+  | { type: 'heading'; label?: string; title: string }                  // 섹션 라벨(pill) + 큰 제목
+  | { type: 'text'; body: string }                                      // 문단 (빈 줄 = 문단 구분)
+  | { type: 'image'; url: string; caption?: string }                    // 풀폭 이미지 (긴 상세이미지 재사용 가능)
+  | { type: 'point'; title: string; body: string; imageUrl?: string }   // Point N — 렌더 시 자동 번호
+  | { type: 'badge'; title: string; body: string; imageUrl?: string }   // 인증·수상 배지
+  | { type: 'specs'; title?: string; rows: { k: string; v: string }[] } // 규격/구성 표
+  | { type: 'notice'; title: string; body: string };                    // 강조 안내 박스 (포장/예약 등)
+
 export interface Product {
   id: string;              // 'naju-pear' 같은 슬러그 또는 랜덤 id
   name: string;            // 예: "나주배"
   subtitle: string;        // 예: "아삭하고 과즙 가득, 산지에서 바로 보내드려요"
   imageUrl: string | null; // null이면 브랜드 일러스트 placeholder 렌더
-  detail: string;          // 상세 본문. 빈 줄로 문단 구분하는 플레인 텍스트
+  detail: string;          // (구) 단순 본문. blocks 비어 있을 때의 폴백
+  blocks: DetailBlock[];   // v2.1: 카드뉴스형 상세페이지 블록 (jsonb, 기본 [])
   isActive: boolean;       // false면 카탈로그/상세 비노출 (admin에서만 보임)
   sortOrder: number;
 }

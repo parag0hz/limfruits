@@ -3,6 +3,8 @@
  * 존재하는 필드만 검사해 담아 반환한다 (부분 수정 지원).
  */
 
+import { isValidBlockImageUrl } from "./detail-blocks";
+
 export type ProductFields = Partial<{
   name: string;
   subtitle: string;
@@ -49,12 +51,12 @@ export function parseProductFields(body: Record<string, unknown>): ParseResult {
       const trimmed = body.imageUrl.trim();
       if (trimmed === "") {
         fields.imageUrl = null;
-      } else if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) {
-        // javascript: 등 위험한 스킴이 상세페이지 <img src>로 흘러가는 것 방지
+      } else if (!isValidBlockImageUrl(trimmed)) {
+        // 상세페이지 블록 사진과 같은 규칙(https:// 또는 / 시작).
+        // javascript: 등 위험한 스킴이 <img src>로 흘러가는 것도 함께 방지
         return {
           ok: false,
-          error:
-            "사진 주소는 http:// 또는 https:// 로 시작하는 인터넷 주소여야 합니다.",
+          error: "사진 주소는 https:// 로 시작하는 인터넷 주소여야 합니다.",
         };
       } else {
         fields.imageUrl = trimmed;

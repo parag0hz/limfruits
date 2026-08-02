@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import type { DetailBlock } from "@/lib/types";
 import { requireAdmin } from "@/lib/auth";
 import { getStore } from "@/lib/db";
 import { parseProductFields } from "../product-fields";
+import { parseDetailBlocks } from "../detail-blocks";
 
 /**
  * PATCH /api/admin/products/[id]
- * body: { name?, subtitle?, detail?, imageUrl?, isActive?, sortOrder? } — 부분 수정
+ * body: { name?, subtitle?, detail?, imageUrl?, isActive?, sortOrder?, blocks? } — 부분 수정
+ * blocks 는 v2.1 카드뉴스형 상세페이지 블록 배열 전체 교체 (검증: detail-blocks.ts)
  */
 export async function PATCH(
   request: Request,
@@ -30,7 +33,18 @@ export async function PATCH(
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { fields } = parsed;
+  const fields: typeof parsed.fields & { blocks?: DetailBlock[] } = {
+    ...parsed.fields,
+  };
+
+  // v2.1: 카드뉴스형 상세페이지 블록 — 배열 전체 교체 방식
+  if (body.blocks !== undefined) {
+    const blocksResult = parseDetailBlocks(body.blocks);
+    if (!blocksResult.ok) {
+      return NextResponse.json({ error: blocksResult.error }, { status: 400 });
+    }
+    fields.blocks = blocksResult.blocks;
+  }
 
   if (Object.keys(fields).length === 0) {
     return NextResponse.json(

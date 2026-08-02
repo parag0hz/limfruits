@@ -6,6 +6,7 @@ import BuyPanel, {
   BuyBar,
   BuyPanelProvider,
 } from '@/components/product/BuyPanel';
+import DetailBlocks from '@/components/product/DetailBlocks';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,115 +75,140 @@ export default async function ProductDetailPage({
   if (!product) notFound();
 
   const options = await getStore().listOptions(product.id);
-  const paragraphs = product.detail
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const hasBlocks = product.blocks.length > 0;
+  // blocks 가 비어 있을 때만 쓰는 (구) detail 문단 폴백
+  const paragraphs = hasBlocks
+    ? []
+    : product.detail
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean);
 
   return (
     <BuyPanelProvider options={options}>
-      <div className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6 lg:pt-10 lg:pb-16">
+      {/* 카드뉴스 섹션의 풀블리드 배경을 위해 바깥 래퍼는 풀폭으로 두고,
+          내용 단위로 max-w-5xl 컬럼을 준다. BuyBar 는 이 래퍼의 마지막
+          요소여야 sticky 가 페이지 끝까지 동작한다 */}
+      <div className="w-full">
         {/* 상단: 이미지 + 구매 패널 */}
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12">
-          <div className="overflow-hidden rounded-2xl border border-hairline">
-            <div className="relative aspect-square w-full">
-              {product.imageUrl ? (
-                // 관리자가 입력하는 외부 URL이라 next/image 원격 도메인 설정 없이 img로 렌더
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <ImagePlaceholder />
-              )}
+        <div className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6 lg:pt-10">
+          <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12">
+            <div className="overflow-hidden rounded-2xl border border-hairline">
+              <div className="relative aspect-square w-full">
+                {product.imageUrl ? (
+                  // 관리자가 입력하는 외부 URL이라 next/image 원격 도메인 설정 없이 img로 렌더
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImagePlaceholder />
+                )}
+              </div>
+            </div>
+
+            <div className="lg:sticky lg:top-24 lg:self-start">
+              <BuyPanel productName={product.name} subtitle={product.subtitle} />
             </div>
           </div>
+        </div>
 
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <BuyPanel productName={product.name} subtitle={product.subtitle} />
+        {/* 카드뉴스형 상세 블록 — heading 경계로 white/surface 풀블리드 교차 */}
+        {hasBlocks && (
+          <div className="mt-14 lg:mt-20">
+            <DetailBlocks blocks={product.blocks} />
+          </div>
+        )}
+
+        {/* 하단: 배송·환불·문의 안내 (blocks 비면 detail 문단 폴백 포함) */}
+        <div
+          className={`mx-auto w-full max-w-5xl px-4 sm:px-6 lg:pb-16 ${
+            hasBlocks ? 'pt-14 lg:pt-16' : 'pt-14 lg:pt-20'
+          }`}
+        >
+          <div className="flex max-w-3xl flex-col gap-12">
+            {paragraphs.length > 0 && (
+              <section aria-labelledby="product-detail-heading">
+                <h2
+                  id="product-detail-heading"
+                  className="text-xl font-bold tracking-tight text-ink"
+                >
+                  상품 정보
+                </h2>
+                <div className="mt-4 flex flex-col gap-4">
+                  {paragraphs.map((paragraph, i) => (
+                    <p key={i} className="text-base leading-7 text-ink/85">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section aria-labelledby="shipping-heading">
+              <h2
+                id="shipping-heading"
+                className="text-xl font-bold tracking-tight text-ink"
+              >
+                배송 안내
+              </h2>
+              <ul className="mt-4 flex flex-col gap-2 text-base leading-7 text-ink/85">
+                {SHIPPING_NOTES.map((note) => (
+                  <li key={note} className="flex gap-2">
+                    <span aria-hidden className="text-muted">
+                      ·
+                    </span>
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section aria-labelledby="refund-heading">
+              <h2
+                id="refund-heading"
+                className="text-xl font-bold tracking-tight text-ink"
+              >
+                교환·환불 안내
+              </h2>
+              <ul className="mt-4 flex flex-col gap-2 text-base leading-7 text-ink/85">
+                {REFUND_NOTES.map((note) => (
+                  <li key={note} className="flex gap-2">
+                    <span aria-hidden className="text-muted">
+                      ·
+                    </span>
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section
+              aria-labelledby="contact-heading"
+              className="rounded-2xl bg-surface p-5 sm:p-6"
+            >
+              <h2
+                id="contact-heading"
+                className="text-base font-semibold text-ink"
+              >
+                문의
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                주문·배송 관련 문의는 전화로 받습니다.{' '}
+                <a
+                  href="tel:010-0000-0000"
+                  className="font-medium text-ink underline underline-offset-2"
+                >
+                  010-OOOO-OOOO
+                </a>
+              </p>
+            </section>
           </div>
         </div>
 
-        {/* 하단: 상세 정보 */}
-        <div className="mt-14 flex max-w-3xl flex-col gap-12 lg:mt-20">
-          {paragraphs.length > 0 && (
-            <section aria-labelledby="product-detail-heading">
-              <h2
-                id="product-detail-heading"
-                className="text-xl font-bold tracking-tight text-ink"
-              >
-                상품 정보
-              </h2>
-              <div className="mt-4 flex flex-col gap-4">
-                {paragraphs.map((paragraph, i) => (
-                  <p key={i} className="text-base leading-7 text-ink/85">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section aria-labelledby="shipping-heading">
-            <h2
-              id="shipping-heading"
-              className="text-xl font-bold tracking-tight text-ink"
-            >
-              배송 안내
-            </h2>
-            <ul className="mt-4 flex flex-col gap-2 text-base leading-7 text-ink/85">
-              {SHIPPING_NOTES.map((note) => (
-                <li key={note} className="flex gap-2">
-                  <span aria-hidden className="text-muted">
-                    ·
-                  </span>
-                  {note}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="refund-heading">
-            <h2
-              id="refund-heading"
-              className="text-xl font-bold tracking-tight text-ink"
-            >
-              교환·환불 안내
-            </h2>
-            <ul className="mt-4 flex flex-col gap-2 text-base leading-7 text-ink/85">
-              {REFUND_NOTES.map((note) => (
-                <li key={note} className="flex gap-2">
-                  <span aria-hidden className="text-muted">
-                    ·
-                  </span>
-                  {note}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section
-            aria-labelledby="contact-heading"
-            className="rounded-2xl bg-surface p-5 sm:p-6"
-          >
-            <h2 id="contact-heading" className="text-base font-semibold text-ink">
-              문의
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted">
-              주문·배송 관련 문의는 전화로 받습니다.{' '}
-              <a
-                href="tel:010-0000-0000"
-                className="font-medium text-ink underline underline-offset-2"
-              >
-                010-OOOO-OOOO
-              </a>
-            </p>
-          </section>
-        </div>
-
-        {/* 모바일 하단 구매 바 — 컨테이너 마지막 요소의 sticky로 두어
+        {/* 모바일 하단 구매 바 — 페이지 흐름 마지막 요소의 sticky로 두어
             문서 끝에서 푸터(관리자 링크·저작권 줄)가 온전히 드러난다 */}
         <BuyBar />
       </div>
