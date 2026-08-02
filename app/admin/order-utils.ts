@@ -1,0 +1,53 @@
+import type { OrderItem } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
+
+/** KST 기준 "YYYY-MM-DD" */
+function kstDateKey(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/** KST 기준 "HH:MM" */
+function kstTime(d: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+/**
+ * 주문 시각 표시 (한국 시간 기준)
+ * - 오늘이면 "오늘 14:30"
+ * - 올해면 "7월 28일 14:30"
+ * - 그 외 "2025.12.31 14:30"
+ */
+export function formatOrderTime(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+
+  const dayKey = kstDateKey(d);
+  if (dayKey === kstDateKey(now)) {
+    return `오늘 ${kstTime(d)}`;
+  }
+
+  const [year, month, day] = dayKey.split("-");
+  if (year === kstDateKey(now).slice(0, 4)) {
+    return `${Number(month)}월 ${Number(day)}일 ${kstTime(d)}`;
+  }
+  return formatDateTime(iso);
+}
+
+/** 주문 항목 요약: "선물세트 5kg × 2", 여러 개면 " 외 N건" */
+export function summarizeItems(items: OrderItem[]): string {
+  if (items.length === 0) return "-";
+  const first = items[0];
+  const head = `${first.optionName} × ${first.quantity}`;
+  if (items.length === 1) return head;
+  return `${head} 외 ${items.length - 1}건`;
+}

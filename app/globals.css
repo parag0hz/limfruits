@@ -1,26 +1,34 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* 브랜드 컬러 (BRAND.md — 로고 실측) */
+  --color-brand: #417837;
+  --color-brand-dark: #2f5928;
+  --color-brand-light: #eaf2e6;
+  --color-cream: #fbf8ef;
+  --color-accent-red: #de432d;
+  --color-accent-yellow: #f1d14a;
+  --color-accent-pink: #e8789c;
+  --color-ink: #2b3327;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* 스캐폴드 호환 토큰 */
+  --color-background: #fbf8ef;
+  --color-foreground: #2b3327;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* 타이포그래피 */
+  --font-sans: var(--font-noto-sans-kr), "Apple SD Gothic Neo",
+    "Malgun Gothic", "Segoe UI", sans-serif;
+  --font-heading: var(--font-jua), var(--font-noto-sans-kr),
+    "Apple SD Gothic Neo", sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-accent-yellow) 55%, transparent);
 }
