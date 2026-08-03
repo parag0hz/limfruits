@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { cn } from "@/components/ui/cn";
 import { formatOrderTime, summarizeItems } from "../order-utils";
 import RefreshButton from "./RefreshButton";
+import ShippingTools from "./ShippingTools";
 
 export const metadata: Metadata = {
   title: "주문 목록",
@@ -102,6 +103,9 @@ export default async function AdminOrdersPage({
           })}
         </div>
       </div>
+
+      {/* 송장 도구 — 신규주문 탭에서만 (엑셀 왕복으로 로젠 송장 출력) */}
+      {tab === "PAID" && <ShippingTools paidCount={counts.PAID} />}
 
       {/* 주문 카드 목록 */}
       {orders.length === 0 ? (
