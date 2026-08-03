@@ -222,14 +222,14 @@ insert into public.products (id, name, subtitle, image_url, detail, blocks, is_a
   },
   {
     "type": "text",
-    "body": "전라남도 나주시 덕룡로 33-8 풍천농원에서 재배하고 발송합니다."
+    "body": "전라남도 나주시 덕룡로 33-8 풍천대봉감농원에서 재배하고 발송합니다."
   },
   {
     "type": "specs",
     "rows": [
       {
         "k": "생산자",
-        "v": "임용균 · 풍천농원"
+        "v": "임용균 · 풍천대봉감농원"
       },
       {
         "k": "문의",

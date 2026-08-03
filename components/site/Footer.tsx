@@ -17,7 +17,7 @@ export default function Footer() {
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">사업자등록번호</dt>
-            <dd>412-9O-42034</dd>
+            <dd>412-90-42034</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium">통신판매업신고</dt>
