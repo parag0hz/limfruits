@@ -1,12 +1,40 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+/**
+ * 봇 답변의 [페이지 이름](/경로) 를 클릭 가능한 내부 링크로 렌더.
+ * 경로가 "/" 로 시작하는 내부 링크만 허용 — 외부 URL은 링크가 되지 않는다.
+ */
+const INTERNAL_LINK = /\[([^\]]+)\]\((\/[^\s)]*)\)/g;
+
+function renderBotText(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(INTERNAL_LINK)) {
+    const [full, label, path] = match;
+    const idx = match.index ?? 0;
+    if (idx > last) parts.push(text.slice(last, idx));
+    parts.push(
+      <a
+        key={`${idx}-${path}`}
+        href={path}
+        className="font-semibold text-brand-dark underline underline-offset-2 hover:text-brand"
+      >
+        {label}
+      </a>
+    );
+    last = idx + full.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }
 
 const STORAGE_KEY = 'limfruits_chat';
@@ -271,7 +299,7 @@ export default function ChatWidget() {
               ) : (
                 <div key={i} className="flex justify-start">
                   <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-surface px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">
-                    {m.content}
+                    {renderBotText(m.content)}
                   </div>
                 </div>
               )
