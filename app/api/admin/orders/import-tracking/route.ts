@@ -84,9 +84,24 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  // xlsx는 압축 포맷이라 5MB 파일도 수십만 행으로 팽창할 수 있다. 행마다 주문을
+  // 순차 조회하므로, 서버리스 타임아웃을 막기 위해 처리 행수에 상한을 둔다.
+  const MAX_ROWS = 2000;
+  if (rows.length > MAX_ROWS) {
+    return NextResponse.json(
+      {
+        error: `한 번에 처리할 수 있는 행은 ${MAX_ROWS.toLocaleString()}행까지입니다. 파일을 나눠서 올려 주세요.`,
+      },
+      { status: 400 }
+    );
+  }
 
   const keys = Object.keys(rows[0]);
+  // 배송건번호(선물 주문의 건별 식별자, "주문번호#2" 형태 포함)를 우선 사용,
+  // 없으면 기존 주문번호 열로 폴백
+  const shipmentKey = findKey(keys, ["배송건번호", "배송건", "배송번호"]);
   const orderKey = findKey(keys, ["주문번호", "주문no", "orderno", "주문"]);
+  const idKey = shipmentKey ?? orderKey;
   const trackingKey = findKey(keys, [
     "운송장번호",
     "송장번호",
@@ -94,11 +109,11 @@ export async function POST(request: Request) {
     "송장",
     "tracking",
   ]);
-  if (!orderKey || !trackingKey) {
+  if (!idKey || !trackingKey) {
     return NextResponse.json(
       {
         error:
-          "주문번호 열과 운송장(송장)번호 열을 찾지 못했습니다. 첫 행에 '주문번호', '운송장번호' 제목이 있는지 확인해 주세요.",
+          "주문번호(배송건번호) 열과 운송장(송장)번호 열을 찾지 못했습니다. 첫 행에 '배송건번호' 또는 '주문번호', '운송장번호' 제목이 있는지 확인해 주세요.",
       },
       { status: 400 }
     );
@@ -106,35 +121,97 @@ export async function POST(request: Request) {
 
   const store = getStore();
   let updated = 0;
+  // 실제로 SHIPPING(배송중)으로 전환된 주문 수 — 선물 주문은 모든 배송 건이
+  // 채워져야 전환되므로, 등록 건수(updated)와 구분해 정확히 안내한다.
+  const shippedOrders = new Set<string>();
   const skipped: { orderNo: string; reason: string }[] = [];
 
   for (const row of rows) {
-    const orderNo = String(row[orderKey] ?? "").trim();
+    const rawId = String(row[idKey] ?? "").trim();
     const trackingNo = String(row[trackingKey] ?? "").replace(/[^0-9-]/g, "");
+    if (!rawId) continue;
+
+    // "주문번호#2" → 주문번호 + 배송 건 순번(1-based). #가 없으면 주문 단위.
+    let orderNo = rawId;
+    let shipmentIndex: number | null = null;
+    const hashIdx = rawId.indexOf("#");
+    if (hashIdx >= 0) {
+      orderNo = rawId.slice(0, hashIdx).trim();
+      const n = Number(rawId.slice(hashIdx + 1).trim());
+      if (Number.isInteger(n) && n >= 1) {
+        shipmentIndex = n;
+      } else {
+        skipped.push({ orderNo: rawId, reason: "배송건번호 형식 오류" });
+        continue;
+      }
+    }
     if (!orderNo) continue;
     if (!trackingNo) {
-      skipped.push({ orderNo, reason: "운송장번호 없음" });
+      skipped.push({ orderNo: rawId, reason: "운송장번호 없음" });
       continue;
     }
     const order = await store.getOrderByNo(orderNo);
     if (!order) {
-      skipped.push({ orderNo, reason: "주문을 찾을 수 없음" });
+      skipped.push({ orderNo: rawId, reason: "주문을 찾을 수 없음" });
       continue;
     }
     if (order.status === "CANCELED" || order.status === "PENDING") {
       skipped.push({
-        orderNo,
+        orderNo: rawId,
         reason: order.status === "CANCELED" ? "취소된 주문" : "결제 전 주문",
       });
       continue;
     }
-    await store.updateOrder(orderNo, {
-      status: "SHIPPING",
-      courier,
-      trackingNo,
-    });
-    updated += 1;
+
+    if (shipmentIndex !== null) {
+      // 선물 주문의 배송 건 단위 저장
+      const shipment = order.shipments[shipmentIndex - 1];
+      if (!shipment) {
+        skipped.push({ orderNo: rawId, reason: "배송 건을 찾을 수 없음" });
+        continue;
+      }
+      await store.updateShipment(orderNo, shipment.id, {
+        courier,
+        trackingNo,
+      });
+      updated += 1;
+      // 모든 배송 건에 운송장이 채워지면 주문 전체를 배송중으로 전환
+      const fresh = await store.getOrderByNo(orderNo);
+      if (
+        fresh &&
+        fresh.kind === "GIFT" &&
+        fresh.status === "PAID" &&
+        fresh.shipments.length > 0 &&
+        fresh.shipments.every((s) => s.courier && s.trackingNo)
+      ) {
+        await store.updateOrder(orderNo, { status: "SHIPPING" });
+        shippedOrders.add(orderNo);
+      }
+    } else {
+      // 주문 단위 저장 (단일 주문). 선물 주문은 배송건번호(#n)로만 건별 저장되어야
+      // 하며, #n 없이 들어오면 상위 운송장만 채워지고 배송 건은 비어 상태가
+      // 어긋난다(선물 상세 UI는 shipments만 렌더). 그래서 GIFT는 여기서 막는다.
+      if (order.kind === "GIFT") {
+        skipped.push({
+          orderNo: rawId,
+          reason: "선물 주문은 배송건번호(주문번호#번호)로 올려 주세요",
+        });
+        continue;
+      }
+      await store.updateOrder(orderNo, {
+        status: "SHIPPING",
+        courier,
+        trackingNo,
+      });
+      updated += 1;
+      shippedOrders.add(orderNo);
+    }
   }
 
-  return NextResponse.json({ ok: true, updated, skipped });
+  return NextResponse.json({
+    ok: true,
+    updated,
+    shipped: shippedOrders.size,
+    skipped,
+  });
 }

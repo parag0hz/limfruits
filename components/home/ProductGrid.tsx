@@ -90,13 +90,24 @@ export default function ProductGrid({ items }: { items: CatalogItem[] }) {
   }
 
   return (
-    <ul className="mx-auto grid w-full max-w-4xl grid-cols-[repeat(auto-fit,minmax(15rem,19rem))] justify-center gap-5">
-      {items.map((item) => (
-        <li key={item.product.id}>
-          <ProductCard item={item} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="mx-auto grid w-full max-w-4xl grid-cols-[repeat(auto-fit,minmax(15rem,19rem))] justify-center gap-5">
+        {items.map((item) => (
+          <li key={item.product.id}>
+            <ProductCard item={item} />
+          </li>
+        ))}
+      </ul>
+      <div className="mt-8 text-center">
+        <Link
+          href="/order/gift"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-dark"
+        >
+          선물·대량으로 여러 곳에 한 번에 보내기
+          <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+    </>
   );
 }
 

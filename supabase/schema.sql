@@ -34,13 +34,16 @@ create table if not exists public.orders (
   order_no text not null unique,
   status text not null default 'PENDING'
     check (status in ('PENDING', 'PAID', 'SHIPPING', 'DONE', 'CANCELED')),
-  customer_name text not null,
+  kind text not null default 'SINGLE'   -- v2.4 SINGLE(단일 주문) | GIFT(선물·다중 배송지)
+    check (kind in ('SINGLE', 'GIFT')),
+  customer_name text not null,    -- SINGLE=받는 분 / GIFT=보내는 분(주문자)
   phone text not null,            -- 숫자만 저장 (01012345678)
   postcode text not null default '',
-  address1 text not null,
+  address1 text not null,         -- GIFT는 빈 문자열 (배송지는 shipments 안에)
   address2 text not null default '',
   memo text not null default '',
-  items jsonb not null,           -- OrderItem[] 스냅샷 (productId/productName/optionId/optionName/unitPrice/quantity)
+  items jsonb not null,           -- OrderItem[] 스냅샷 (GIFT는 모든 배송 건 items 평탄화 합)
+  shipments jsonb not null default '[]', -- v2.4 GIFT 배송 건 배열 (Shipment[]). SINGLE은 []
   total_amount integer not null check (total_amount >= 0),
   payment_key text,
   payment_method text,
@@ -49,6 +52,13 @@ create table if not exists public.orders (
   tracking_no text,
   created_at timestamptz not null default now()
 );
+
+-- v2.4 멱등 마이그레이션 — 기존 설치 사용자는 이 두 문장만 다시 실행해도 안전합니다.
+-- (신규 설치는 위 create table 이 이미 두 컬럼을 포함)
+alter table public.orders
+  add column if not exists kind text not null default 'SINGLE';
+alter table public.orders
+  add column if not exists shipments jsonb not null default '[]';
 
 create index if not exists orders_status_idx on public.orders (status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);

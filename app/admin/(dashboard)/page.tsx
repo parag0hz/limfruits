@@ -3,9 +3,13 @@ import Link from "next/link";
 import { getStore } from "@/lib/db";
 import type { Order, OrderStatus } from "@/lib/types";
 import { formatWon } from "@/lib/format";
-import { StatusBadge } from "@/components/ui/Badge";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { cn } from "@/components/ui/cn";
-import { formatOrderTime, summarizeItems } from "../order-utils";
+import {
+  formatOrderTime,
+  summarizeItems,
+  summarizeRecipients,
+} from "../order-utils";
 import RefreshButton from "./RefreshButton";
 import ShippingTools from "./ShippingTools";
 
@@ -133,6 +137,7 @@ export default async function AdminOrdersPage({
 }
 
 function OrderCard({ order }: { order: Order }) {
+  const isGift = order.kind === "GIFT";
   return (
     <Link
       href={`/admin/orders/${order.orderNo}`}
@@ -147,10 +152,17 @@ function OrderCard({ order }: { order: Order }) {
             </span>
           </p>
           <p className="mt-1 truncate text-lg text-ink">
-            {summarizeItems(order.items)}
+            {isGift
+              ? `받는 분 ${summarizeRecipients(order)}`
+              : summarizeItems(order.items)}
           </p>
         </div>
-        <StatusBadge status={order.status} className="mt-0.5 shrink-0" />
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <StatusBadge status={order.status} />
+          {isGift && (
+            <Badge tone="green">선물 {order.shipments.length}건</Badge>
+          )}
+        </div>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-xl font-bold text-brand-dark tabular-nums">

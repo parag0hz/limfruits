@@ -2,11 +2,13 @@ import { randomUUID } from 'crypto';
 import type {
   DetailBlock,
   Order,
+  OrderItem,
   OrderStatus,
   Product,
   ProductOption,
   Review,
   ReviewStatus,
+  Shipment,
 } from './types';
 import {
   generateOrderNo,
@@ -477,6 +479,7 @@ function seedOrders(): Order[] {
     id: randomUUID(),
     orderNo: generateOrderNo(yesterday),
     status: 'PAID',
+    kind: 'SINGLE',
     customerName: '김나주 (예시)',
     phone: '01012345678',
     postcode: '58210',
@@ -494,6 +497,7 @@ function seedOrders(): Order[] {
       },
     ],
     totalAmount: 38000,
+    shipments: [],
     paymentKey: null,
     paymentMethod: '카드',
     paidAt: yesterday.toISOString(),
@@ -506,6 +510,7 @@ function seedOrders(): Order[] {
     id: randomUUID(),
     orderNo: generateOrderNo(threeDaysAgo),
     status: 'SHIPPING',
+    kind: 'SINGLE',
     customerName: '이배꽃 (예시)',
     phone: '01098765432',
     postcode: '06236',
@@ -523,6 +528,7 @@ function seedOrders(): Order[] {
       },
     ],
     totalAmount: 58000,
+    shipments: [],
     paymentKey: null,
     paymentMethod: '간편결제',
     paidAt: threeDaysAgo.toISOString(),
@@ -539,25 +545,22 @@ function seedOrders(): Order[] {
  * 스키마가 바뀔 때마다 키를 올린다(구 스키마 데이터와 충돌 방지).
  * v2.1: Product.blocks 추가 — blocks 없는 v2 상품 객체가 남아 있으면
  * product.blocks.length 접근에서 죽으므로 키를 올려 새로 시드한다.
+ * v2.4: Order.kind/shipments 추가 — kind/shipments 없는 구 주문 객체가 남아 있으면
+ * 렌더/발송 처리에서 죽으므로 키를 올려(V2_2 → V2_4) 새로 시드한다.
  */
 function getData(): MemoryData {
   const g = globalThis as typeof globalThis & {
-    __limfruitsMemoryDbV2_2?: MemoryData;
+    __limfruitsMemoryDbV2_4?: MemoryData;
   };
-  if (!g.__limfruitsMemoryDbV2_2) {
-    g.__limfruitsMemoryDbV2_2 = {
+  if (!g.__limfruitsMemoryDbV2_4) {
+    g.__limfruitsMemoryDbV2_4 = {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
       reviews: [],
     };
   }
-  // v2.2: reviews 필드 추가 — 키를 올리지 않고 기존 HMR 객체에 없으면 채워 넣는다
-  // (배열 추가는 구 스키마 데이터와 충돌하지 않으므로 시드 데이터 유지)
-  if (!g.__limfruitsMemoryDbV2_2.reviews) {
-    g.__limfruitsMemoryDbV2_2.reviews = [];
-  }
-  return g.__limfruitsMemoryDbV2_2;
+  return g.__limfruitsMemoryDbV2_4;
 }
 
 function clone<T>(value: T): T {
@@ -729,6 +732,7 @@ class MemoryStore implements Store {
       id: randomUUID(),
       orderNo,
       status: 'PENDING',
+      kind: 'SINGLE',
       customerName: input.customerName,
       phone: normalizePhone(input.phone),
       postcode: input.postcode,
@@ -736,6 +740,7 @@ class MemoryStore implements Store {
       address2: input.address2,
       memo: input.memo,
       items: clone(input.items),
+      shipments: [],
       totalAmount: input.totalAmount,
       paymentKey: null,
       paymentMethod: null,
@@ -806,6 +811,90 @@ class MemoryStore implements Store {
     if (patch.status !== undefined) order.status = patch.status;
     if (patch.courier !== undefined) order.courier = patch.courier;
     if (patch.trackingNo !== undefined) order.trackingNo = patch.trackingNo;
+  }
+
+  // ── 선물·대량 주문 (다중 배송지, v2.4) ────────────────
+
+  async createGiftOrder(input: {
+    senderName: string;
+    senderPhone: string;
+    memo: string;
+    shipments: Array<{
+      recipientName: string;
+      phone: string;
+      postcode: string;
+      address1: string;
+      address2: string;
+      giftMessage: string;
+      items: OrderItem[];
+    }>;
+    totalAmount: number;
+  }): Promise<Order> {
+    const data = getData();
+    let orderNo = generateOrderNo();
+    while (data.orders.some((o) => o.orderNo === orderNo)) {
+      orderNo = generateOrderNo();
+    }
+
+    // 배송 건 id 는 이 주문의 shipments 안에서만 유일하면 됨
+    const shipments: Shipment[] = [];
+    for (const s of input.shipments) {
+      shipments.push({
+        id: uniqueShortId(shipments),
+        recipientName: s.recipientName,
+        phone: normalizePhone(s.phone),
+        postcode: s.postcode,
+        address1: s.address1,
+        address2: s.address2,
+        giftMessage: s.giftMessage,
+        items: clone(s.items),
+        courier: null,
+        trackingNo: null,
+      });
+    }
+
+    const order: Order = {
+      id: randomUUID(),
+      orderNo,
+      status: 'PENDING',
+      kind: 'GIFT',
+      // GIFT: top-level 이름/연락처 = 보내는 분(주문자), 주소는 빈 문자열
+      customerName: input.senderName,
+      phone: normalizePhone(input.senderPhone),
+      postcode: '',
+      address1: '',
+      address2: '',
+      memo: input.memo,
+      // 총액 계산·하위호환용: 모든 배송 건 items 를 평탄화한 합
+      items: shipments.flatMap((s) => clone(s.items)),
+      shipments,
+      totalAmount: input.totalAmount,
+      paymentKey: null,
+      paymentMethod: null,
+      paidAt: null,
+      courier: null,
+      trackingNo: null,
+      createdAt: new Date().toISOString(),
+    };
+    data.orders.push(order);
+    return clone(order);
+  }
+
+  async updateShipment(
+    orderNo: string,
+    shipmentId: string,
+    patch: { courier?: string | null; trackingNo?: string | null }
+  ): Promise<void> {
+    const order = getData().orders.find((o) => o.orderNo === orderNo);
+    if (!order) {
+      throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
+    }
+    const shipment = order.shipments.find((s) => s.id === shipmentId);
+    if (!shipment) {
+      throw new Error(`배송 건을 찾을 수 없습니다: ${orderNo} / ${shipmentId}`);
+    }
+    if (patch.courier !== undefined) shipment.courier = patch.courier;
+    if (patch.trackingNo !== undefined) shipment.trackingNo = patch.trackingNo;
   }
 
   // ── 리뷰 (v2.2) ───────────────────────────────────────

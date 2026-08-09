@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStore } from '@/lib/db';
 import BuyPanel, {
@@ -112,6 +113,15 @@ export default async function ProductDetailPage({
 
             <div className="lg:sticky lg:top-24 lg:self-start">
               <BuyPanel productName={product.name} subtitle={product.subtitle} />
+              <div className="mt-4 border-t border-hairline pt-4">
+                <Link
+                  href="/order/gift"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-dark"
+                >
+                  선물·대량 주문 (여러 곳에 한 번에)
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

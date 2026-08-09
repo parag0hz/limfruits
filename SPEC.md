@@ -332,3 +332,96 @@ const finalMessage = await client.beta.messages.toolRunner({
 | widget | `components/chat/*`(신규), `app/(site)/layout.tsx`(위젯 마운트만) |
 
 그 외 읽기 전용. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지. 결제·주문·리뷰 로직 변경 금지.
+
+---
+
+# v2.4 부록 — 선물·대량 주문 (다중 배송지)
+
+명절 선물 시나리오: 보내는 사람(주문자) ≠ 받는 사람, 받는 사람 여러 명, 받는 분마다 다른 구성 가능, **한 번에 결제**. 각 세트 가격이 "배송비 포함가"이므로 총액 = 각 배송 건의 (옵션가 × 수량) 합. 기존 단일 주문 흐름(`/order`)은 그대로 유지하고 **별도 경로**로 추가한다.
+
+## 데이터 모델 — `lib/types.ts` (data 소유)
+
+```ts
+export type OrderKind = 'SINGLE' | 'GIFT';
+
+export interface Shipment {
+  id: string;             // 배송 건 id (짧은 랜덤)
+  recipientName: string;
+  phone: string;          // 숫자만 저장
+  postcode: string;
+  address1: string;
+  address2: string;
+  giftMessage: string;    // 선물 메시지(선택), 빈 문자열 허용
+  items: OrderItem[];     // 이 받는 분에게 가는 구성(옵션·수량 스냅샷)
+  courier: string | null; // 배송 건별 운송장
+  trackingNo: string | null;
+}
+```
+
+Order 확장(기존 필드 유지, 하위호환):
+- `kind: OrderKind` — 기본 `'SINGLE'`. SINGLE 주문은 기존과 100% 동일(top-level customerName/phone/address = 받는 분, shipments = [])
+- `shipments: Shipment[]` — GIFT 주문의 받는 분별 배송 건. SINGLE은 `[]`
+- GIFT 주문에서 top-level `customerName`/`phone` = **보내는 분(주문자)**, top-level 주소 필드는 빈 문자열, `memo`는 주문 전체 메모. GIFT의 배송지·운송장은 **shipments 안에만** 존재
+- `items`(top-level) = 모든 배송 건 items를 평탄화한 합(총액 계산·하위호환용). `totalAmount` = 그 합
+
+## 저장소 — `lib/db.ts` (data 소유)
+
+```ts
+createGiftOrder(input: {
+  senderName: string; senderPhone: string; memo: string;
+  shipments: Array<{
+    recipientName: string; phone: string; postcode: string;
+    address1: string; address2: string; giftMessage: string;
+    items: OrderItem[];   // 서버가 옵션 조회로 스냅샷 채움
+  }>;
+  totalAmount: number;
+}): Promise<Order>;                    // kind:'GIFT', orderNo 생성
+updateShipment(orderNo: string, shipmentId: string, patch: { courier?: string|null; trackingNo?: string|null }): Promise<void>;
+```
+
+- 메모리·Supabase 모두 구현. Supabase: `orders`에 `kind text not null default 'SINGLE'`, `shipments jsonb not null default '[]'` 컬럼 추가(멱등 `alter table ... add column if not exists`). 기존 `createOrder`/`updateOrder`/조회는 그대로 두고 kind/shipments를 함께 매핑. **기존 설치 사용자는 이 두 컬럼 추가 SQL만 다시 실행하면 됨**
+- `db-memory.ts`: Order에 kind/shipments 포함해 반환(기존 주문은 kind:'SINGLE', shipments:[]). 싱글턴 키 올림
+
+## 결제 플로우 — 기존 것 재사용, 변경 금지
+
+`/order/success`·`confirmPayment`·금액 검증은 orderNo+totalAmount 기반이라 주문 종류와 무관하게 그대로 동작. **success/fail/toss.ts/order-token.ts 절대 수정 금지.** GIFT 주문도 `POST /api/orders/gift`가 PENDING 주문을 만들고 `{ orderNo, amount, orderName }`을 돌려주면 나머지는 동일.
+
+## API (checkout 소유)
+
+| 경로 | 설명 |
+|---|---|
+| `POST /api/orders/gift` | body: `{ senderName, senderPhone, memo, shipments: [{ recipientName, phone, postcode, address1, address2, giftMessage, optionId, quantity }] }`. 검증: 배송 건 1~100개, 각 옵션 DB 조회(품절·비활성 거부), 수량 1~99, 이름·연락처·주소 필수, giftMessage 200자 이하. **금액은 서버가 옵션가로 계산**. orderName 예: "나주배 선물세트 7.5kg 외 4건". 반환 `{ orderNo, amount, orderName }` |
+| `GET /api/orders/gift/template` | 받는 분 명단 엑셀 양식 다운로드(빈 양식: 받는분성명/전화번호/우편번호/주소/상세주소/상품옵션/수량/선물메시지 헤더 + 예시 1행) |
+
+## 화면 (checkout 소유)
+
+- **진입**: 홈·상품 상세에 "선물·대량 주문" 링크 → `/order/gift`
+- `/order/gift` (client): 
+  - **받는 분 카드 목록**(장바구니). 각 카드 = 상품·옵션 select(활성·재고 있는 옵션만) + 수량 + 받는 분 성함·연락처 + 주소(다음 우편번호 검색) + 선물 메시지 + 삭제. "받는 분 추가" 버튼
+  - **엑셀 대량 업로드**: 양식 다운로드 링크 + 파일 선택 → **클라이언트에서 xlsx 파싱**(이미 설치됨) → 상품옵션 텍스트를 옵션명과 매칭해 유효 행을 카드로 추가, 매칭 실패·검증 실패 행은 "N행: 사유" 목록으로 안내(전체 실패시키지 말고 유효분만 추가). 전화/우편번호 정규화
+  - 보내는 분(주문자) 성함·연락처 입력(1회)
+  - 합계(모든 건 합) 크게 + 배송 건 수 표시. 하단 고정 바
+  - "결제하기" → `POST /api/orders/gift` → 토스 위젯 `requestPayment`(OrderForm과 동일 패턴, orderName/amount 서버 값 사용). 위젯·결제 흐름 코드는 OrderForm 방식 재사용하되 **결제 코어는 건드리지 않음**
+  - BRAND v2 스타일, 모바일 퍼스트
+
+## 관리자 (admin 소유)
+
+- **주문 목록**(`/admin`): GIFT 주문은 카드에 "선물 N건" 뱃지, 요약은 "홍길동 외 N명"
+- **주문 상세**(`/admin/orders/[orderNo]`): `kind==='GIFT'`이면 보내는 분 정보 + **배송 건 목록** 렌더. 각 건: 받는 분·연락처(tel:)·주소(복사 버튼)·구성·선물 메시지 + **건별 택배사 select + 운송장 입력 → 저장**(PATCH). SINGLE은 기존 UI 그대로
+- `PATCH /api/admin/orders/[orderNo]` 확장: body에 `shipmentId`가 있으면 `updateShipment` 호출(그 건의 courier/trackingNo만). 없으면 기존 동작. requireAdmin 유지
+- **GIFT 주문 상태 전이**: 모든 배송 건에 운송장이 입력되면 관리자가 "전체 발송 처리"로 주문을 SHIPPING으로. (건별 상태까지는 v1 범위 밖 — 주문 단위 상태 유지)
+
+## 로젠 엑셀 왕복 — 다중 배송지 대응 (admin 소유)
+
+- **내보내기**(`/api/admin/orders/export`): 행 단위를 **배송 건**으로 변경. SINGLE 주문은 1행(기존), GIFT 주문은 배송 건마다 1행. 각 행에 **배송건번호** 열 추가 — SINGLE은 `orderNo`, GIFT는 `orderNo#1`, `orderNo#2`… (건 순번). 받는분/주소/품목은 그 건 기준. "보내는분" 열 추가
+- **가져오기**(`/api/admin/orders/import-tracking`): 배송건번호 파싱 — `#n`이 있으면 해당 주문의 n번째 배송 건 운송장 저장(updateShipment), 없으면 기존 주문 단위 저장. 나머지(인코딩·헤더 매칭·스킵 사유)는 기존 로직 유지
+
+## 파일 소유권 (v2.4 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `supabase/schema.sql` |
+| checkout | `app/api/orders/gift/**`(신규), `app/(site)/order/gift/**`(신규), `components/order/gift/*`(신규), `components/home/*`·`app/(site)/products/[id]/page.tsx`·`components/product/*`(선물 주문 진입 링크 추가만) |
+| admin | `app/admin/**`, `app/api/admin/orders/**`, `components/admin/*` |
+
+그 외 읽기 전용. **`app/(site)/order/success/**`·`app/(site)/order/fail/**`·`lib/toss.ts`·`lib/order-token.ts`·`lib/auth.ts` 절대 수정 금지.** 기존 단일 주문(`/order`, `POST /api/orders`)·결제·리뷰·챗봇 로직 변경 금지.

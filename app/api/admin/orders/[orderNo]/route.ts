@@ -20,8 +20,10 @@ function isOrderStatus(v: unknown): v is OrderStatus {
 
 /**
  * PATCH /api/admin/orders/[orderNo]
- * body: { status?, courier?, trackingNo?, cancelReason? }
+ * body: { status?, courier?, trackingNo?, cancelReason?, shipmentId? }
+ * - shipmentId가 있으면 GIFT 주문의 해당 배송 건 운송장만 저장 (updateShipment)
  * - status는 OrderStatus enum만 허용
+ * - GIFT 주문을 SHIPPING으로 바꾸려면 모든 배송 건에 운송장이 있어야 함
  * - CANCELED로 변경 시 paymentKey가 있으면 토스 결제취소 API 호출
  */
 export async function PATCH(
@@ -38,6 +40,7 @@ export async function PATCH(
     courier?: unknown;
     trackingNo?: unknown;
     cancelReason?: unknown;
+    shipmentId?: unknown;
   };
   try {
     body = await request.json();
@@ -46,6 +49,70 @@ export async function PATCH(
       { error: "요청 형식이 올바르지 않습니다." },
       { status: 400 }
     );
+  }
+
+  const store = getStore();
+
+  // --- 배송 건(shipment) 단위 운송장 저장 (GIFT 주문) ---
+  if (body.shipmentId !== undefined) {
+    if (typeof body.shipmentId !== "string" || body.shipmentId.trim() === "") {
+      return NextResponse.json(
+        { error: "배송 건 정보가 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+    const shipmentId = body.shipmentId.trim();
+
+    const shipmentPatch: { courier?: string; trackingNo?: string } = {};
+    if (body.courier !== undefined) {
+      if (typeof body.courier !== "string" || body.courier.trim() === "") {
+        return NextResponse.json(
+          { error: "택배사를 선택해 주세요." },
+          { status: 400 }
+        );
+      }
+      shipmentPatch.courier = body.courier.trim();
+    }
+    if (body.trackingNo !== undefined) {
+      if (
+        typeof body.trackingNo !== "string" ||
+        body.trackingNo.trim() === ""
+      ) {
+        return NextResponse.json(
+          { error: "운송장 번호를 입력해 주세요." },
+          { status: 400 }
+        );
+      }
+      shipmentPatch.trackingNo = body.trackingNo.trim();
+    }
+    if (
+      shipmentPatch.courier === undefined &&
+      shipmentPatch.trackingNo === undefined
+    ) {
+      return NextResponse.json(
+        { error: "변경할 내용이 없습니다." },
+        { status: 400 }
+      );
+    }
+
+    const order = await store.getOrderByNo(orderNo);
+    if (!order) {
+      return NextResponse.json(
+        { error: "주문을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+    const shipment = order.shipments.find((s) => s.id === shipmentId);
+    if (!shipment) {
+      return NextResponse.json(
+        { error: "배송 건을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    await store.updateShipment(orderNo, shipmentId, shipmentPatch);
+    const updated = await store.getOrderByNo(orderNo);
+    return NextResponse.json({ ok: true, order: updated });
   }
 
   // --- 입력 검증 ---
@@ -96,7 +163,6 @@ export async function PATCH(
     );
   }
 
-  const store = getStore();
   const order = await store.getOrderByNo(orderNo);
   if (!order) {
     return NextResponse.json(
@@ -105,15 +171,32 @@ export async function PATCH(
     );
   }
 
-  // 발송 처리 시 택배사 + 운송장 필수 (기존 값이 있으면 유지 가능)
+  // 발송 처리 시 운송장 필수
   if (patch.status === "SHIPPING") {
-    const courier = patch.courier ?? order.courier;
-    const trackingNo = patch.trackingNo ?? order.trackingNo;
-    if (!courier || !trackingNo) {
-      return NextResponse.json(
-        { error: "발송 처리하려면 택배사와 운송장 번호를 입력해 주세요." },
-        { status: 400 }
-      );
+    if (order.kind === "GIFT") {
+      // GIFT: 모든 배송 건에 택배사 + 운송장이 입력돼 있어야 전체 발송 처리 가능
+      const allTracked =
+        order.shipments.length > 0 &&
+        order.shipments.every((s) => s.courier && s.trackingNo);
+      if (!allTracked) {
+        return NextResponse.json(
+          {
+            error:
+              "모든 배송 건에 운송장을 입력한 뒤 전체 발송 처리할 수 있습니다.",
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      // SINGLE: 택배사 + 운송장 필수 (기존 값이 있으면 유지 가능)
+      const courier = patch.courier ?? order.courier;
+      const trackingNo = patch.trackingNo ?? order.trackingNo;
+      if (!courier || !trackingNo) {
+        return NextResponse.json(
+          { error: "발송 처리하려면 택배사와 운송장 번호를 입력해 주세요." },
+          { status: 400 }
+        );
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import type { OrderItem } from "@/lib/types";
+import type { Order, OrderItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 
 /** KST 기준 "YYYY-MM-DD" */
@@ -55,4 +55,13 @@ export function summarizeItems(items: OrderItem[]): string {
   const head = `${itemLabel(first)} × ${first.quantity}`;
   if (items.length === 1) return head;
   return `${head} 외 ${items.length - 1}건`;
+}
+
+/** 선물 주문 받는 분 요약: "홍길동", 여러 명이면 "홍길동 외 N명" */
+export function summarizeRecipients(order: Order): string {
+  const ships = order.shipments;
+  if (ships.length === 0) return "-";
+  const first = ships[0].recipientName || "받는 분";
+  if (ships.length === 1) return first;
+  return `${first} 외 ${ships.length - 1}명`;
 }

@@ -44,10 +44,25 @@ export async function GET(req: Request) {
       ? (await getStore().getReviewByOrderNo(order.orderNo)) !== null
       : false;
 
+  // v2.4: 선물(다중배송) 주문이면 배송 건별 현황을 함께 반환한다.
+  // 인증에 성공한 보내는 분(주문자)에게만 보이며, 받는 분 전화·상세주소 등은
+  // 제외하고 배송 추적에 필요한 값(받는 분 성함·구성·택배사·운송장)만 노출한다.
+  const shipments =
+    order.kind === 'GIFT'
+      ? order.shipments.map((s) => ({
+          recipientName: s.recipientName,
+          giftMessage: s.giftMessage,
+          items: s.items,
+          courier: s.courier,
+          trackingNo: s.trackingNo,
+        }))
+      : [];
+
   // 조회에 필요한 정보만 골라서 반환 (paymentKey·phone 등 내부 값 제외)
   return NextResponse.json({
     order: {
       orderNo: order.orderNo,
+      kind: order.kind,
       status: order.status,
       customerName: order.customerName,
       postcode: order.postcode,
@@ -55,6 +70,7 @@ export async function GET(req: Request) {
       address2: order.address2,
       memo: order.memo,
       items: order.items,
+      shipments,
       totalAmount: order.totalAmount,
       paymentMethod: order.paymentMethod,
       paidAt: order.paidAt,

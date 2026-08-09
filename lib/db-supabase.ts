@@ -3,11 +3,13 @@ import type {
   DetailBlock,
   Order,
   OrderItem,
+  OrderKind,
   OrderStatus,
   Product,
   ProductOption,
   Review,
   ReviewStatus,
+  Shipment,
 } from './types';
 import {
   generateOrderNo,
@@ -25,9 +27,9 @@ import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
  *  products: id, name, subtitle, image_url, detail, blocks(jsonb), is_active, sort_order
  *  product_options: id, product_id(FK → products, ON DELETE CASCADE),
  *                   name, description, price, sold_out, sort_order
- *  orders: id, order_no, status, customer_name, phone, postcode, address1,
- *          address2, memo, items(jsonb), total_amount, payment_key,
- *          payment_method, paid_at, courier, tracking_no, created_at
+ *  orders: id, order_no, status, kind, customer_name, phone, postcode, address1,
+ *          address2, memo, items(jsonb), shipments(jsonb), total_amount,
+ *          payment_key, payment_method, paid_at, courier, tracking_no, created_at
  *  reviews: id, product_id, order_no(unique), author_name, phone, rating,
  *           body, photos(jsonb), status, created_at
  */
@@ -57,6 +59,7 @@ interface OrderRow {
   id: string;
   order_no: string;
   status: OrderStatus;
+  kind: OrderKind | null; // v2.4 — 구 스키마 행/컬럼 부재 방어 (읽기 시 'SINGLE' 폴백)
   customer_name: string;
   phone: string;
   postcode: string;
@@ -64,6 +67,7 @@ interface OrderRow {
   address2: string;
   memo: string;
   items: OrderItem[];
+  shipments: Shipment[] | unknown; // jsonb — 구 스키마/대시보드 편집 방어 (읽기 시 정화)
   total_amount: number;
   payment_key: string | null;
   payment_method: string | null;
@@ -136,11 +140,36 @@ function toIso(value: string | null): string | null {
   return Number.isNaN(d.getTime()) ? value : d.toISOString();
 }
 
+/**
+ * shipments jsonb 정화 — 구 스키마 행(컬럼 부재 → undefined)이나 대시보드에서
+ * 직접 편집된 값도 안전하게 Shipment[] 로 만든다. 형태가 어긋난 항목은 필드 보정.
+ */
+function normalizeShipments(value: unknown): Shipment[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+    .map((s) => ({
+      id: typeof s.id === 'string' ? s.id : '',
+      recipientName:
+        typeof s.recipientName === 'string' ? s.recipientName : '',
+      phone: typeof s.phone === 'string' ? s.phone : '',
+      postcode: typeof s.postcode === 'string' ? s.postcode : '',
+      address1: typeof s.address1 === 'string' ? s.address1 : '',
+      address2: typeof s.address2 === 'string' ? s.address2 : '',
+      giftMessage: typeof s.giftMessage === 'string' ? s.giftMessage : '',
+      items: Array.isArray(s.items) ? (s.items as OrderItem[]) : [],
+      courier: typeof s.courier === 'string' ? s.courier : null,
+      trackingNo: typeof s.trackingNo === 'string' ? s.trackingNo : null,
+    }));
+}
+
 function toOrder(row: OrderRow): Order {
   return {
     id: row.id,
     orderNo: row.order_no,
     status: row.status,
+    // 구 스키마(kind 컬럼 부재 → null/undefined)는 'SINGLE' 로 폴백
+    kind: row.kind === 'GIFT' ? 'GIFT' : 'SINGLE',
     customerName: row.customer_name,
     phone: row.phone,
     postcode: row.postcode,
@@ -148,6 +177,7 @@ function toOrder(row: OrderRow): Order {
     address2: row.address2,
     memo: row.memo,
     items: row.items,
+    shipments: normalizeShipments(row.shipments),
     totalAmount: row.total_amount,
     paymentKey: row.payment_key,
     paymentMethod: row.payment_method,
@@ -392,6 +422,7 @@ class SupabaseStore implements Store {
         .insert({
           order_no: orderNo,
           status: 'PENDING',
+          kind: 'SINGLE' satisfies OrderKind,
           customer_name: input.customerName,
           phone: normalizePhone(input.phone),
           postcode: input.postcode,
@@ -399,6 +430,7 @@ class SupabaseStore implements Store {
           address2: input.address2,
           memo: input.memo,
           items: input.items,
+          shipments: [],
           total_amount: input.totalAmount,
         })
         .select('*')
@@ -479,6 +511,107 @@ class SupabaseStore implements Store {
       .update(row)
       .eq('order_no', orderNo);
     if (error) throw new Error(`주문 수정 실패: ${error.message}`);
+  }
+
+  // ── 선물·대량 주문 (다중 배송지, v2.4) ────────────────
+
+  async createGiftOrder(input: {
+    senderName: string;
+    senderPhone: string;
+    memo: string;
+    shipments: Array<{
+      recipientName: string;
+      phone: string;
+      postcode: string;
+      address1: string;
+      address2: string;
+      giftMessage: string;
+      items: OrderItem[];
+    }>;
+    totalAmount: number;
+  }): Promise<Order> {
+    // 배송 건 id 는 이 주문의 shipments 안에서만 유일하면 됨
+    const shipments: Shipment[] = [];
+    for (const s of input.shipments) {
+      let id = generateShortId();
+      while (shipments.some((x) => x.id === id)) id = generateShortId();
+      shipments.push({
+        id,
+        recipientName: s.recipientName,
+        phone: normalizePhone(s.phone),
+        postcode: s.postcode,
+        address1: s.address1,
+        address2: s.address2,
+        giftMessage: s.giftMessage,
+        items: s.items,
+        courier: null,
+        trackingNo: null,
+      });
+    }
+    // 총액 계산·하위호환용: 모든 배송 건 items 를 평탄화한 합
+    const items = shipments.flatMap((s) => s.items);
+
+    // 주문번호 유니크 충돌 시 재시도
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const orderNo = generateOrderNo();
+      const { data, error } = await getClient()
+        .from('orders')
+        .insert({
+          order_no: orderNo,
+          status: 'PENDING',
+          kind: 'GIFT' satisfies OrderKind,
+          // GIFT: top-level 이름/연락처 = 보내는 분(주문자), 주소는 빈 문자열
+          customer_name: input.senderName,
+          phone: normalizePhone(input.senderPhone),
+          postcode: '',
+          address1: '',
+          address2: '',
+          memo: input.memo,
+          items,
+          shipments,
+          total_amount: input.totalAmount,
+        })
+        .select('*')
+        .single();
+      if (!error) return toOrder(data as OrderRow);
+      if (error.code !== '23505') {
+        throw new Error(`선물 주문 생성 실패: ${error.message}`);
+      }
+    }
+    throw new Error('주문번호 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+
+  /** 배송 건 하나의 courier/trackingNo만 갱신 — jsonb 배열을 read-modify-write */
+  async updateShipment(
+    orderNo: string,
+    shipmentId: string,
+    patch: { courier?: string | null; trackingNo?: string | null }
+  ): Promise<void> {
+    const { data, error } = await getClient()
+      .from('orders')
+      .select('shipments')
+      .eq('order_no', orderNo)
+      .maybeSingle();
+    if (error) throw new Error(`배송 건 조회 실패: ${error.message}`);
+    if (!data) throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
+
+    const shipments = normalizeShipments(
+      (data as { shipments: unknown }).shipments
+    );
+    const shipment = shipments.find((s) => s.id === shipmentId);
+    if (!shipment) {
+      throw new Error(`배송 건을 찾을 수 없습니다: ${orderNo} / ${shipmentId}`);
+    }
+    if (patch.courier !== undefined) shipment.courier = patch.courier;
+    if (patch.trackingNo !== undefined) shipment.trackingNo = patch.trackingNo;
+
+    const { error: updateError } = await getClient()
+      .from('orders')
+      .update({ shipments })
+      .eq('order_no', orderNo);
+    if (updateError) {
+      throw new Error(`배송 건 수정 실패: ${updateError.message}`);
+    }
   }
 
   // ── 리뷰 (v2.2) ───────────────────────────────────────

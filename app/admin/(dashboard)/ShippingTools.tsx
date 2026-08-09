@@ -6,6 +6,7 @@ import { cn } from "@/components/ui/cn";
 
 interface ImportResult {
   updated: number;
+  shipped: number;
   skipped: { orderNo: string; reason: string }[];
 }
 
@@ -49,9 +50,22 @@ export default function ShippingTools({ paidCount }: { paidCount: number }) {
               .map((s) => `${s.orderNo} — ${s.reason}`)
               .join(", ")}${data.skipped.length > 3 ? " 외" : ""})`
           : "";
+      // 선물 주문은 모든 배송 건이 등록돼야 배송중으로 전환되므로,
+      // 운송장 등록 건수와 실제 배송중 전환 주문 수를 구분해 안내한다.
+      const shipped = data.shipped ?? 0;
+      let base: string;
+      if (data.updated === 0) {
+        base = "등록된 운송장이 없습니다.";
+      } else if (shipped >= data.updated) {
+        base = `운송장 ${data.updated}건을 등록하고 배송중으로 바꿨습니다.`;
+      } else if (shipped > 0) {
+        base = `운송장 ${data.updated}건을 등록했습니다. 주문 ${shipped}건이 배송중으로 전환됐고, 나머지 선물 주문은 배송 건이 모두 등록되면 전환됩니다.`;
+      } else {
+        base = `운송장 ${data.updated}건을 등록했습니다. 선물 주문은 모든 배송 건이 등록되면 배송중으로 전환됩니다.`;
+      }
       setMessage({
         tone: data.updated > 0 ? "ok" : "error",
-        text: `운송장 ${data.updated}건을 등록하고 배송중으로 바꿨습니다.${skippedText}`,
+        text: `${base}${skippedText}`,
       });
       router.refresh();
     } catch {

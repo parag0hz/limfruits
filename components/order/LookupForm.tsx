@@ -11,9 +11,19 @@ import OrderStatusTimeline from './OrderStatusTimeline';
 import CopyButton from './CopyButton';
 import ReviewForm from '@/components/review/ReviewForm';
 
+/** v2.4 — 선물 주문의 배송 건(보내는 분에게 보이는 최소 정보) */
+interface LookupShipment {
+  recipientName: string;
+  giftMessage: string;
+  items: OrderItem[];
+  courier: string | null;
+  trackingNo: string | null;
+}
+
 /** GET /api/orders/lookup 응답의 주문 (내부 정보 제외 버전) */
 interface LookupOrder {
   orderNo: string;
+  kind?: 'SINGLE' | 'GIFT';
   status: OrderStatus;
   customerName: string;
   postcode: string;
@@ -21,6 +31,7 @@ interface LookupOrder {
   address2: string;
   memo: string;
   items: OrderItem[];
+  shipments?: LookupShipment[];
   totalAmount: number;
   paymentMethod: string | null;
   paidAt: string | null;
@@ -174,28 +185,75 @@ export default function LookupForm({
             )}
           </Card>
 
-          {/* 운송장 */}
-          {(order.status === 'SHIPPING' || order.status === 'DONE') && (
-            <Card tone="light">
-              <h3 className="text-base font-bold tracking-tight text-ink">
-                배송 정보
-              </h3>
-              {order.courier && order.trackingNo ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-ink">{order.courier}</span>
-                  <span className="font-semibold tracking-wide tabular-nums text-ink">
-                    {order.trackingNo}
-                  </span>
-                  <CopyButton text={order.trackingNo} label="운송장 복사" />
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-muted">
-                  운송장 번호가 아직 등록되지 않았습니다. 등록되는 대로
-                  확인하실 수 있습니다.
+          {/* 운송장 — 선물(다중배송) 주문은 받는 분별로, 단일 주문은 하나로 */}
+          {(order.status === 'SHIPPING' || order.status === 'DONE') &&
+            (order.kind === 'GIFT' && order.shipments?.length ? (
+              <Card tone="light">
+                <h3 className="text-base font-bold tracking-tight text-ink">
+                  선물 배송 정보
+                </h3>
+                <p className="mt-1 text-sm text-muted">
+                  받는 분 {order.shipments.length}곳으로 보내는 선물의 배송
+                  현황입니다.
                 </p>
-              )}
-            </Card>
-          )}
+                <ul className="mt-3 flex flex-col gap-3">
+                  {order.shipments.map((s, i) => (
+                    <li
+                      key={i}
+                      className="rounded-xl border border-hairline bg-white p-3"
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-bold text-ink">
+                          {s.recipientName}
+                        </span>
+                        <span className="text-sm text-muted">
+                          {s.items
+                            .map((it) => `${itemLabel(it)} × ${it.quantity}`)
+                            .join(', ')}
+                        </span>
+                      </div>
+                      {s.courier && s.trackingNo ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-ink">
+                            {s.courier}
+                          </span>
+                          <span className="font-semibold tracking-wide tabular-nums text-ink">
+                            {s.trackingNo}
+                          </span>
+                          <CopyButton text={s.trackingNo} label="운송장 복사" />
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted">
+                          운송장 번호가 아직 등록되지 않았습니다.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : (
+              <Card tone="light">
+                <h3 className="text-base font-bold tracking-tight text-ink">
+                  배송 정보
+                </h3>
+                {order.courier && order.trackingNo ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">
+                      {order.courier}
+                    </span>
+                    <span className="font-semibold tracking-wide tabular-nums text-ink">
+                      {order.trackingNo}
+                    </span>
+                    <CopyButton text={order.trackingNo} label="운송장 복사" />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted">
+                    운송장 번호가 아직 등록되지 않았습니다. 등록되는 대로
+                    확인하실 수 있습니다.
+                  </p>
+                )}
+              </Card>
+            ))}
 
           {/* 구매 후기 — 수령(SHIPPING/DONE) 후에만 작성 가능 */}
           {(order.status === 'SHIPPING' || order.status === 'DONE') && (

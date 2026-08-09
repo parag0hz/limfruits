@@ -57,22 +57,40 @@ export interface Review {
   createdAt: string;
 }
 
+/** v2.4 선물·대량 주문 (다중 배송지) — SPEC v2.4 부록 참고 */
+export type OrderKind = 'SINGLE' | 'GIFT';
+
+export interface Shipment {
+  id: string;             // 배송 건 id (짧은 랜덤)
+  recipientName: string;
+  phone: string;          // 숫자만 저장
+  postcode: string;
+  address1: string;
+  address2: string;
+  giftMessage: string;    // 선물 메시지(선택), 빈 문자열 허용
+  items: OrderItem[];     // 이 받는 분에게 가는 구성(옵션·수량 스냅샷)
+  courier: string | null; // 배송 건별 운송장
+  trackingNo: string | null;
+}
+
 export interface Order {
   id: string;
   orderNo: string;      // "LF-YYYYMMDD-XXXXXXXX" (대문자 영숫자 8자리 랜덤)
   status: OrderStatus;
-  customerName: string;
-  phone: string;        // 숫자만 저장 (01012345678)
+  kind: OrderKind;      // v2.4 — 기본 'SINGLE'. GIFT면 top-level 이름/연락처=보내는 분, 주소는 빈 문자열
+  customerName: string; // SINGLE=받는 분 / GIFT=보내는 분(주문자)
+  phone: string;        // 숫자만 저장 (01012345678). GIFT=보내는 분 연락처
   postcode: string;
   address1: string;
   address2: string;
   memo: string;
-  items: OrderItem[];
+  items: OrderItem[];   // GIFT는 모든 배송 건 items를 평탄화한 합 (총액·하위호환용)
+  shipments: Shipment[];// v2.4 — GIFT 주문의 받는 분별 배송 건. SINGLE은 []
   totalAmount: number;
   paymentKey: string | null;
   paymentMethod: string | null; // 토스 응답 method (카드/간편결제 등)
   paidAt: string | null;        // ISO
-  courier: string | null;       // 택배사명
+  courier: string | null;       // 택배사명 (SINGLE 주문용. GIFT는 shipments 안에)
   trackingNo: string | null;
   createdAt: string;            // ISO
 }

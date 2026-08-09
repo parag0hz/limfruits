@@ -72,6 +72,27 @@ export interface Store {
       trackingNo?: string | null;
     }
   ): Promise<void>;
+  // 선물·대량 주문 (다중 배송지) — v2.4
+  createGiftOrder(input: {
+    senderName: string;
+    senderPhone: string;
+    memo: string;
+    shipments: Array<{
+      recipientName: string;
+      phone: string;
+      postcode: string;
+      address1: string;
+      address2: string;
+      giftMessage: string;
+      items: OrderItem[]; // 서버가 옵션 조회로 스냅샷 채움
+    }>;
+    totalAmount: number;
+  }): Promise<Order>; // kind:'GIFT', orderNo 생성 포함, status PENDING
+  updateShipment(
+    orderNo: string,
+    shipmentId: string,
+    patch: { courier?: string | null; trackingNo?: string | null }
+  ): Promise<void>;
   // 리뷰 — v2.2. orderNo unique(주문당 1개), 위반 시 ReviewExistsError
   createReview(input: {
     productId: string;
