@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getStore } from '@/lib/db';
+import type { Review } from '@/lib/types';
 import Stars from './Stars';
 import { maskName } from './mask-name';
 
@@ -31,8 +32,14 @@ export default async function ReviewSection({
 }: {
   productId: string;
 }) {
-  // 요약(개수·평균)은 전체 기준으로 계산하고, 목록만 최근 30개를 보여준다
-  const all = await getStore().listReviews({ productId });
+  // 요약(개수·평균)은 전체 기준으로 계산하고, 목록만 최근 30개를 보여준다.
+  // 리뷰 조회 실패(예: reviews 테이블 미생성)가 상품 페이지 전체를 죽이면 안 된다 — 빈 목록으로 강등
+  let all: Review[] = [];
+  try {
+    all = await getStore().listReviews({ productId });
+  } catch (e) {
+    console.error("[reviews] 목록 조회 실패 — 후기 섹션을 비웁니다:", e);
+  }
   const count = all.length;
   const average =
     count > 0 ? all.reduce((sum, r) => sum + r.rating, 0) / count : 0;
