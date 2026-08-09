@@ -33,3 +33,4 @@
 - [ ] 토스페이먼츠 라이브 키 — 현재 문서 공개 테스트 키 폴백. 상점 심사 후 `NEXT_PUBLIC_TOSS_CLIENT_KEY` / `TOSS_SECRET_KEY` 설정
 - [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정 (카톡 공유 미리보기 OG 이미지용)
 - [ ] 신규 주문 문자 알림 — 알리고(smartsms.aligo.in) 가입 + 발신번호 등록 후 Vercel에 `CRON_SECRET`·`ALIGO_API_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER`·`NOTIFY_PHONE` 설정, `supabase/cron.sql` 실행 (README "신규 주문 문자 알림" 절 참고. 키 넣기 전까지는 드라이런)
+- [ ] AI 상담 챗봇 — console.anthropic.com에서 `ANTHROPIC_API_KEY` 발급 후 Vercel/`.env.local`에 설정 (README "AI 상담 챗봇" 절 참고. 키가 없으면 챗봇 버튼이 아예 표시되지 않으며, 선택 env `CHAT_MODEL`·`CHAT_EFFORT`로 모델·응답 속도 조절 가능)

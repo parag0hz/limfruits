@@ -254,3 +254,81 @@ deleteReview(id: string): Promise<void>;
 | admin | `app/admin/**`, `app/api/admin/reviews/**` |
 
 그 외 읽기 전용. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지. 기존 결제·주문 로직 변경 금지.
+
+---
+
+# v2.3 부록 — AI 상담 챗봇 (Claude API tool-use 에이전트)
+
+사이트 우측 하단 채팅 위젯. 단순 FAQ가 아니라 **도구를 실제로 호출하는 에이전트**: 상품·가격·품절은 DB를 실시간 조회하고, 주문 상태는 주문번호+전화번호 검증 후 안내한다.
+
+## 환경변수
+
+- `ANTHROPIC_API_KEY` — **없으면 위젯 자체를 렌더하지 않고**, `/api/chat`은 503. 키를 넣는 순간 활성화
+- `CHAT_MODEL` — 기본 `claude-opus-5` (비용 절감 시 `claude-haiku-4-5`로 교체 가능)
+- `CHAT_EFFORT` — 기본 `low` (상담 챗은 지연이 중요. `low|medium|high`만 허용)
+
+## SDK 사용 계약 (`@anthropic-ai/sdk` 설치됨) — **이 시그니처를 그대로 쓸 것, 추측 금지**
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { betaTool } from '@anthropic-ai/sdk/helpers/beta/json-schema';
+
+const client = new Anthropic(); // ANTHROPIC_API_KEY 자동 인식
+
+const listProducts = betaTool({
+  name: 'list_products',
+  description: '판매 중인 상품·옵션·가격·품절 여부를 조회한다. 상품/가격/재고 질문에는 반드시 이 도구를 먼저 호출한다.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  run: async () => JSON.stringify(/* getStore() 조회 결과 */),
+});
+
+const finalMessage = await client.beta.messages.toolRunner({
+  model, max_tokens: 1024,
+  output_config: { effort },
+  system: SYSTEM_PROMPT,
+  tools: [listProducts, getOrderStatus],
+  messages,            // [{role:'user'|'assistant', content: string}] 그대로 전달 가능
+  max_iterations: 5,
+});
+// 응답 텍스트 = finalMessage.content 중 type==='text' 블록들의 text 를 이어붙임
+```
+
+- 에러는 타입 클래스로 분기: `Anthropic.AuthenticationError`(→503 "상담 기능을 준비 중입니다"), `Anthropic.RateLimitError`·상태 529(→503 "상담이 몰리고 있어요. 잠시 후 다시 시도해 주세요"), 그 외 `Anthropic.APIError`(→500 일반 안내). 원문 에러 메시지를 클라이언트에 노출 금지
+- `claude-opus-5`는 thinking이 기본 켜져 있음 — `thinking` 파라미터를 **보내지 말 것**. temperature/top_p 금지(400)
+
+## 도구 2개 (`lib/chat.ts`)
+
+1. `list_products` (인자 없음): 활성 상품별 { 상품명, 부제, 상세페이지 경로 `/products/<id>`, 옵션: [{이름, 가격(원), 품절}] }. getStore() 사용
+2. `get_order_status` ({ orderNo: string, phone: string } 필수): `findOrder(orderNo, phone)` — 전화 불일치·부재 시 "주문을 찾을 수 없음"을 도구 결과로 반환(모델이 재확인 유도). 성공 시 { 상태(한글), 주문일, 상품 요약, 금액, 택배사, 운송장번호 }만 — **주소·전화번호는 절대 포함 금지**
+
+## 시스템 프롬프트에 넣을 사실 (지어내기 방지 — 이 밖의 구체 수치는 말하지 말 것)
+
+- 임과일: 풍천대봉감농원(전남 나주시 덕룡로 33-8)의 과일 직판. 신고배·풍수배·황금배 재배, 도라지배즙 판매. GAP 우수관리인증 제1006050호
+- 가격은 배송비 포함. 주문 확인 후 산지에서 발송, 명절 성수기엔 주문 순서대로 순차 발송. 농산물 특성상 크기·모양 상이 가능. 배는 수령 후 냉장 보관 권장
+- 문의: 010-2618-5151, 카카오톡 limcon1. 주문조회 페이지 `/order/lookup`
+- 가드레일: 상품·가격·품절은 반드시 list_products 호출 후 답변(기억으로 답하지 말 것). 주문 상태는 주문번호+전화번호를 받아 get_order_status — 하나라도 없으면 정중히 요청. 환불·취소·결제 문제는 직접 처리 불가 → 전화 안내. 배송 소요일 등 확정 안 된 정보는 단정하지 말고 전화 안내. 과일과 무관한 질문은 짧고 정중하게 사양. 개인정보(주소·카드번호)는 묻지도 저장하지도 않음. 존댓말, 간결하게(2~4문장), 이모지 금지
+
+## API — `POST /api/chat`
+
+- body: `{ messages: { role: 'user'|'assistant', content: string }[] }`
+- 검증: 배열 1~12개(초과 시 앞을 잘라 최근 12개만 사용), 각 content 1~500자(초과 400), role 화이트리스트, 마지막은 user
+- 레이트리밋: IP당 10분에 20회(globalThis Map, 초과 429 한국어 안내). content-length 과대 요청 400
+- 응답: `{ reply: string }`. 키 없으면 503
+
+## 위젯 — `components/chat/ChatWidget.tsx` (client)
+
+- 우측 하단 플로팅 버튼(그린 원형 56px, 말풍선 아이콘). 열면: 데스크톱 380×560px 카드(우하단 고정), 모바일 화면 대부분 차지하는 시트. BRAND v2 스타일
+- 헤더 "임과일 상담" + 닫기. 첫 화면: 인사말 + 추천 질문 칩 3개("어떤 상품이 있나요?", "주문 배송 조회하고 싶어요", "선물용으로 뭐가 좋아요?")
+- 메시지 목록(유저 우측 그린, 봇 좌측 서피스), 로딩 점 3개 애니메이션, 에러 시 말풍선로 한국어 안내 + 재시도
+- 입력창 + 전송(Enter 전송, 전송 중 비활성). 대화는 sessionStorage `limfruits_chat` 유지(최근 12개만 서버 전송)
+- 하단 면책 한 줄: "AI 상담이 정확하지 않을 수 있어요 · 문의 010-2618-5151"
+- 마운트: `app/(site)/layout.tsx` (server component)에서 `process.env.ANTHROPIC_API_KEY` 있을 때만 렌더 → admin에는 안 뜸
+
+## 파일 소유권 (v2.3 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| api | `lib/chat.ts`, `app/api/chat/route.ts` |
+| widget | `components/chat/*`(신규), `app/(site)/layout.tsx`(위젯 마운트만) |
+
+그 외 읽기 전용. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지. 결제·주문·리뷰 로직 변경 금지.
