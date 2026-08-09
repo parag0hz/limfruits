@@ -32,3 +32,4 @@
 - [x] `ADMIN_PASSWORD` / `AUTH_SECRET` — Vercel 설정 확인됨
 - [ ] 토스페이먼츠 라이브 키 — 현재 문서 공개 테스트 키 폴백. 상점 심사 후 `NEXT_PUBLIC_TOSS_CLIENT_KEY` / `TOSS_SECRET_KEY` 설정
 - [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정 (카톡 공유 미리보기 OG 이미지용)
+- [ ] 신규 주문 문자 알림 — 알리고(smartsms.aligo.in) 가입 + 발신번호 등록 후 Vercel에 `CRON_SECRET`·`ALIGO_API_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER`·`NOTIFY_PHONE` 설정, `supabase/cron.sql` 실행 (README "신규 주문 문자 알림" 절 참고. 키 넣기 전까지는 드라이런)
