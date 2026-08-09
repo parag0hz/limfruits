@@ -13,6 +13,7 @@ import { formatWon } from '@/lib/format';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
 import QuantityStepper from '@/components/order/QuantityStepper';
+import Stars from '@/components/review/Stars';
 
 const MAX_QUANTITY = 20;
 
@@ -108,6 +109,13 @@ export function BuyPanelProvider({
 export interface BuyPanelProps {
   productName: string;
   subtitle: string;
+  /** VISIBLE 리뷰 개수 (0이면 요약 미표시) */
+  reviewCount?: number;
+  /**
+   * VISIBLE 리뷰 평균 별점 — 원 평균(반올림 전)을 넘긴다.
+   * Stars 가 한 번만 반올림하도록 두어야 하단 후기 섹션과 별 개수가 일치한다.
+   */
+  reviewAverage?: number;
 }
 
 /**
@@ -115,7 +123,12 @@ export interface BuyPanelProps {
  * 데스크톱은 우측 스티키 패널로 쓰고, 모바일 구매 버튼은 BuyBar가 담당한다.
  * 반드시 BuyPanelProvider 안에서 렌더한다. 구매하기 → /order?option=<id>&qty=<n>
  */
-export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
+export default function BuyPanel({
+  productName,
+  subtitle,
+  reviewCount = 0,
+  reviewAverage = 0,
+}: BuyPanelProps) {
   const {
     options,
     selectedId,
@@ -129,6 +142,9 @@ export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
     goToOrder,
   } = useBuyState();
 
+  // 옵션 미선택(품절 아님) — 구매 버튼 비활성 + 안내 문구
+  const needsSelection = !allSoldOut && !selectedId;
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -136,6 +152,21 @@ export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
           {productName}
         </h1>
         {subtitle && <p className="mt-1.5 text-base text-muted">{subtitle}</p>}
+        {reviewCount > 0 && (
+          // 하단 후기 섹션으로 앵커 스크롤 (page.tsx 가 ReviewSection 을 #reviews 로 감쌈)
+          <a
+            href="#reviews"
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-full transition-colors hover:text-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            <Stars rating={reviewAverage} size="sm" />
+            <span className="text-sm font-semibold tabular-nums text-ink">
+              {reviewAverage.toFixed(1)}
+            </span>
+            <span className="text-sm text-muted underline underline-offset-2">
+              후기 {reviewCount}개
+            </span>
+          </a>
+        )}
       </div>
 
       {options.length === 0 ? (
@@ -206,14 +237,21 @@ export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
           </div>
 
           {/* 데스크톱/태블릿 구매 버튼 — 모바일은 하단 구매 바(BuyBar) 사용 */}
-          <Button
-            size="lg"
-            onClick={goToOrder}
-            disabled={allSoldOut}
-            className="hidden w-full lg:inline-flex"
-          >
-            {allSoldOut ? '품절' : '구매하기'}
-          </Button>
+          <div className="hidden flex-col gap-2 lg:flex">
+            <Button
+              size="lg"
+              onClick={goToOrder}
+              disabled={allSoldOut || !selectedId}
+              className="w-full"
+            >
+              {allSoldOut ? '품절' : '구매하기'}
+            </Button>
+            {needsSelection && (
+              <p className="text-center text-sm text-muted">
+                구성을 선택해 주세요
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -221,18 +259,22 @@ export default function BuyPanel({ productName, subtitle }: BuyPanelProps) {
 }
 
 /**
- * 모바일 하단 구매 바 (client) — 상세 페이지의 풀폭 래퍼 마지막 요소로 배치한다.
+ * 하단 구매 바 (client) — 상세 페이지의 풀폭 래퍼 마지막 요소로 배치한다.
  * fixed가 아니라 sticky라 문서 끝까지 내리면 푸터가 온전히 드러난다.
  * (OrderForm의 하단 결제 바와 같은 방식. 부모가 풀폭이므로 네거티브 마진 불필요)
+ * 데스크톱에도 노출한다: 우측 sticky 패널은 이미지+패널 그리드 안에만 있어
+ * 긴 상세 본문 구간에서는 뷰포트를 벗어나므로, 스크롤 내내 구매 접근을
+ * 유지하려면 이 하단 바가 데스크톱에서도 필요하다(SPEC v2.5 항목 3 폴백).
+ * 내용은 max-w-5xl 로 상세 페이지 컬럼과 정렬한다.
  */
 export function BuyBar() {
-  const { options, selected, quantity, total, allSoldOut, goToOrder } =
+  const { options, selectedId, selected, quantity, total, allSoldOut, goToOrder } =
     useBuyState();
 
   if (options.length === 0) return null;
 
   return (
-    <div className="sticky bottom-0 z-40 mt-10 border-t border-hairline bg-white/95 backdrop-blur-md lg:hidden">
+    <div className="sticky bottom-0 z-40 mt-10 border-t border-hairline bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="truncate text-xs text-muted">
@@ -247,7 +289,7 @@ export function BuyBar() {
         <Button
           size="lg"
           onClick={goToOrder}
-          disabled={allSoldOut}
+          disabled={allSoldOut || !selectedId}
           className="shrink-0"
         >
           {allSoldOut ? '품절' : '구매하기'}

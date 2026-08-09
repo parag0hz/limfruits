@@ -80,8 +80,10 @@ function readStoredMessages(): ChatMessage[] {
  * AI 상담 챗 위젯 (SPEC v2.3 부록).
  * 우측 하단 플로팅 버튼 → 데스크톱 380×560 카드 / 모바일 인셋 시트.
  * 대화는 sessionStorage에 유지하고, 서버에는 최근 12개만 보낸다.
- * 버튼 위치: 상품 상세는 하단 구매 바(sticky z-40, 약 72px) 위로 5.5rem 띄우고,
- * 주문 페이지는 결제 바(에러 시 높이 가변)와 겹치므로 버튼을 숨긴다. 그 외는 bottom 1.5rem.
+ * 버튼 위치: 상품 상세는 하단 구매 바(sticky z-40, 데스크톱·모바일 모두 노출) 위로
+ * 5.5rem 띄우고, 주문/선물 결제 페이지는 결제 바(에러 시 높이 가변)와 겹치므로 버튼을 숨긴다.
+ * 그 외(홈 등)는 우하단 여백을 넉넉히 둬(모바일 bottom 2rem / 데스크톱 2rem)
+ * 카탈로그 카드 위에 얹혀 보이지 않게 한다.
  */
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -98,10 +100,11 @@ export default function ChatWidget() {
   const wasOpenRef = useRef(false);
 
   const pathname = usePathname();
-  // 하단 구매 바가 있는 상품 상세에서만 버튼을 바 위로 띄운다
+  // 하단 구매 바가 있는 상품 상세에서만 버튼을 바 위로 띄운다(바는 데스크톱에도 노출)
   const hasBuyBar = pathname?.startsWith('/products/') ?? false;
-  // 주문 페이지의 모바일 결제 바는 에러 문구로 높이가 변해 버튼과 겹칠 수 있어 숨긴다
-  const hideLauncher = pathname === '/order';
+  // 하단 고정 결제 바가 있는 주문/선물 결제 페이지는 버튼과 겹치므로 숨긴다.
+  // (/order/lookup·/order/complete 에는 고정 결제 바가 없으므로 두 경로만 정확히 제외)
+  const hideLauncher = pathname === '/order' || pathname === '/order/gift';
 
   useEffect(() => {
     try {
@@ -206,10 +209,10 @@ export default function ChatWidget() {
           type="button"
           aria-label="상담 열기"
           onClick={() => setOpen(true)}
-          className={`fixed right-4 z-[60] flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand text-white shadow-lg transition-colors hover:bg-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:right-6 lg:bottom-6 ${
+          className={`fixed right-4 z-[60] flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand text-white shadow-lg transition-colors hover:bg-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:right-6 ${
             hasBuyBar
               ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom))]'
-              : 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
+              : 'bottom-[calc(2rem+env(safe-area-inset-bottom))] lg:bottom-8'
           }`}
         >
           <svg

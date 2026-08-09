@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { Product } from "@/lib/types";
 import { formatWon } from "@/lib/format";
 import Badge from "@/components/ui/Badge";
+import { buttonClasses } from "@/components/ui/Button";
+import Stars from "@/components/review/Stars";
 
 export interface CatalogItem {
   product: Product;
@@ -10,6 +12,10 @@ export interface CatalogItem {
   minPrice: number | null;
   /** 전 옵션 품절 (옵션이 하나라도 있고 모두 soldOut) */
   soldOut: boolean;
+  /** VISIBLE 리뷰 개수 (0이면 별점 미표시) */
+  reviewCount: number;
+  /** VISIBLE 리뷰 평균 별점 — 원 평균(반올림 전). Stars 가 한 번만 반올림한다 */
+  reviewAverage: number;
 }
 
 /** 대표이미지가 없을 때 — 서피스 배경에 로고 일러스트를 작고 정갈하게 */
@@ -28,7 +34,7 @@ function ImagePlaceholder() {
 }
 
 function ProductCard({ item }: { item: CatalogItem }) {
-  const { product, minPrice, soldOut } = item;
+  const { product, minPrice, soldOut, reviewCount, reviewAverage } = item;
   return (
     <Link
       href={`/products/${encodeURIComponent(product.id)}`}
@@ -58,6 +64,14 @@ function ProductCard({ item }: { item: CatalogItem }) {
           <p className="mt-0.5 line-clamp-2 text-sm text-muted">
             {product.subtitle}
           </p>
+        )}
+        {reviewCount > 0 && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <Stars rating={reviewAverage} size="sm" />
+            <span className="text-xs text-muted tabular-nums">
+              (후기 {reviewCount})
+            </span>
+          </div>
         )}
         <p className="mt-3 text-lg font-semibold tabular-nums text-ink">
           {minPrice !== null ? (
@@ -98,13 +112,22 @@ export default function ProductGrid({ items }: { items: CatalogItem[] }) {
           </li>
         ))}
       </ul>
-      <div className="mt-8 text-center">
+      {/* 선물·대량 주문 진입 배너 — 작은 텍스트 링크에서 눈에 띄는 배너로 승격 */}
+      <div className="mx-auto mt-10 flex w-full max-w-4xl flex-col items-center gap-4 rounded-2xl border border-hairline bg-surface px-6 py-7 text-center sm:flex-row sm:justify-between sm:gap-6 sm:text-left">
+        <div>
+          <h3 className="text-base font-semibold text-ink">
+            여러 곳에 선물 보내기
+          </h3>
+          <p className="mt-1 text-sm text-muted">
+            받는 분이 여러 명이어도 엑셀 양식으로 한 번에 주문하고 결제할 수
+            있습니다.
+          </p>
+        </div>
         <Link
           href="/order/gift"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-dark"
+          className={buttonClasses("primary", "md", "w-full shrink-0 sm:w-auto")}
         >
-          선물·대량으로 여러 곳에 한 번에 보내기
-          <span aria-hidden="true">→</span>
+          선물·대량 주문
         </Link>
       </div>
     </>

@@ -26,19 +26,28 @@ function isSafeUrl(url: string): boolean {
 /**
  * 상품 상세 "구매 후기" 섹션 (server component) —
  * 공개 GET API 없이 store 를 직접 읽는다. 최근 30개, VISIBLE 만.
+ * 상단 리뷰 요약과 집계를 공유하도록, 부모(page)가 이미 조회한 목록을
+ * `reviews` 로 넘기면 그대로 쓴다(중복 쿼리 방지). 넘기지 않으면 직접 조회한다.
  */
 export default async function ReviewSection({
   productId,
+  reviews: provided,
 }: {
   productId: string;
+  /** 부모가 이미 조회한 VISIBLE 리뷰 목록. 주면 재조회하지 않는다 */
+  reviews?: Review[];
 }) {
   // 요약(개수·평균)은 전체 기준으로 계산하고, 목록만 최근 30개를 보여준다.
   // 리뷰 조회 실패(예: reviews 테이블 미생성)가 상품 페이지 전체를 죽이면 안 된다 — 빈 목록으로 강등
   let all: Review[] = [];
-  try {
-    all = await getStore().listReviews({ productId });
-  } catch (e) {
-    console.error("[reviews] 목록 조회 실패 — 후기 섹션을 비웁니다:", e);
+  if (provided) {
+    all = provided;
+  } else {
+    try {
+      all = await getStore().listReviews({ productId });
+    } catch (e) {
+      console.error("[reviews] 목록 조회 실패 — 후기 섹션을 비웁니다:", e);
+    }
   }
   const count = all.length;
   const average =

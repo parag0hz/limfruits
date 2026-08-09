@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { getStore } from "@/lib/db";
+import type { Review } from "@/lib/types";
 import ProductGrid, { type CatalogItem } from "@/components/home/ProductGrid";
+import { buttonClasses } from "@/components/ui/Button";
 
 /** 관리자가 상품/가격/품절을 바꾸면 홈에 즉시 반영되도록 항상 동적 렌더 */
 export const dynamic = "force-dynamic";
@@ -33,39 +36,74 @@ const FACTS: { title: string; body: React.ReactNode }[] = [
 
 export default async function HomePage() {
   const store = getStore();
-  const [products, options] = await Promise.all([
+  // VISIBLE 리뷰 전체를 한 번 조회해 상품별 개수·평균으로 집계한다.
+  // (store 인터페이스는 그대로 — 페이지 레벨에서만 집계) 리뷰 조회 실패가
+  // 홈 전체를 죽이면 안 되므로 실패 시 빈 배열로 강등한다.
+  const [products, options, reviews] = await Promise.all([
     store.listProducts(),
     store.listOptions(),
+    store.listReviews({}).catch((e) => {
+      console.error("[home] 리뷰 집계 조회 실패 — 별점 없이 렌더합니다:", e);
+      return [] as Review[];
+    }),
   ]);
+
+  const reviewStats = new Map<string, { sum: number; count: number }>();
+  for (const review of reviews) {
+    const stat = reviewStats.get(review.productId) ?? { sum: 0, count: 0 };
+    stat.sum += review.rating;
+    stat.count += 1;
+    reviewStats.set(review.productId, stat);
+  }
 
   const items: CatalogItem[] = products.map((product) => {
     const productOptions = options.filter((o) => o.productId === product.id);
     const prices = productOptions.map((o) => o.price);
+    const stat = reviewStats.get(product.id);
+    const reviewCount = stat?.count ?? 0;
     return {
       product,
       minPrice: prices.length > 0 ? Math.min(...prices) : null,
       soldOut:
         productOptions.length > 0 && productOptions.every((o) => o.soldOut),
+      reviewCount,
+      // 원 평균(반올림 전) — Stars 가 한 번만 반올림하도록 두어
+      // 상품 상세 상단 요약·하단 후기 섹션과 카드의 별 개수가 일치하게 한다.
+      reviewAverage: reviewCount > 0 ? stat!.sum / reviewCount : 0,
     };
   });
 
   return (
     <div className="flex flex-col">
-      {/* 히어로 — 짧고 단정하게, 장식 없이 */}
-      <section className="mx-auto w-full max-w-5xl px-4 pt-16 pb-12 text-center sm:px-6 sm:pt-24 sm:pb-16">
-        <h1 className="text-4xl font-bold tracking-tight text-ink sm:text-5xl md:text-6xl">
+      {/* 히어로 — 짧고 단정하게, 장식 없이. 상단 여백은 상품이 첫 화면에 걸리도록 절제 */}
+      <section className="mx-auto w-full max-w-5xl px-4 pt-10 pb-10 text-center sm:px-6 sm:pt-14 sm:pb-14">
+        <h1 className="text-balance text-4xl font-bold tracking-tight text-ink sm:text-5xl md:text-6xl">
           나주에서 수확한 그대로.
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-base text-muted sm:text-lg">
+        <p className="mx-auto mt-4 max-w-xl text-balance text-base text-muted sm:text-lg">
           농장에서 직접 재배하고, 주문 확인 후 산지에서 발송합니다.
         </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a
+            href="#products"
+            className={buttonClasses("primary", "lg", "w-full sm:w-auto")}
+          >
+            상품 보기
+          </a>
+          <Link
+            href="/order/gift"
+            className={buttonClasses("outline", "lg", "w-full sm:w-auto")}
+          >
+            선물·대량 주문
+          </Link>
+        </div>
       </section>
 
-      {/* 상품 카탈로그 */}
+      {/* 상품 카탈로그 — 히어로 "상품 보기" CTA 의 앵커 대상. 헤더가 sticky 라 scroll-mt 로 여백 확보 */}
       <section
         id="products"
         aria-label="판매 상품"
-        className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6"
+        className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-16 sm:px-6"
       >
         <ProductGrid items={items} />
       </section>

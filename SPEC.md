@@ -425,3 +425,44 @@ updateShipment(orderNo: string, shipmentId: string, patch: { courier?: string|nu
 | admin | `app/admin/**`, `app/api/admin/orders/**`, `components/admin/*` |
 
 그 외 읽기 전용. **`app/(site)/order/success/**`·`app/(site)/order/fail/**`·`lib/toss.ts`·`lib/order-token.ts`·`lib/auth.ts` 절대 수정 금지.** 기존 단일 주문(`/order`, `POST /api/orders`)·결제·리뷰·챗봇 로직 변경 금지.
+
+---
+
+# v2.5 부록 — UX 개선 (히어로·구매 패널·리뷰 노출·선물 진입·챗봇 위치)
+
+실제 렌더 화면 검토에서 나온 전환·완성도 개선. **상품 사진/콘텐츠는 이번 범위 아님**(사장 피드백 대기). 기존 결제·주문·데이터 계약 변경 없음, 시각/구조만 개선.
+
+## 개선 항목 (storefront 소유, 챗봇 위치만 widget 소유)
+
+1. **홈 히어로 (`components/home/Hero.tsx`)**
+   - 헤드라인 유지하되 **CTA 버튼 2개 추가**: "상품 보기"(아래 카탈로그로 스무스 스크롤 또는 첫 상품) + "선물·대량 주문"(→ /order/gift, outline). Button 컴포넌트 재사용
+   - 데스크톱 상단 여백 과다 축소(상품이 첫 화면에 더 걸리게), 모바일 헤드라인 줄바꿈 어색함 정리(`text-balance` 또는 폭 조정)
+2. **상품 카드 리뷰 노출 (`components/home/ProductGrid.tsx` + `app/(site)/page.tsx`)**
+   - CatalogItem 에 `reviewCount: number`, `reviewAverage: number` 추가. page.tsx(server)에서 `getStore().listReviews({})`(VISIBLE 전체)를 한 번 불러 productId 별 {count, 평균(소수1)} 집계해 전달. **store 인터페이스 변경 없이 페이지에서 집계**
+   - 카드에 별점(★ 평균) + "(후기 N)" 작게 표시. 후기 0개면 미표시(빈 값 강요 금지). 별 아이콘은 인라인 SVG/문자
+3. **상품 상세 구매 패널 (`components/product/BuyPanel.tsx`)**
+   - **옵션 미선택 시 "구매하기" 비활성**: 현재 `disabled={allSoldOut}` → `disabled={allSoldOut || !selectedOptionId}`. 미선택 시 버튼 아래(또는 위)에 "구성을 선택해 주세요" 안내 문구. 데스크톱 패널·모바일 하단 바 **양쪽 동일 적용**
+   - **데스크톱에도 구매 접근 유지**: 현재 하단 바가 `lg:hidden`이라 데스크톱엔 없음 → 데스크톱 구매 패널을 스크롤에 따라오게(`lg:sticky lg:top-24` 등, 상단 이미지+패널 영역이 상세 본문과 함께 스크롤될 때 패널이 뷰포트에 남도록). 긴 상세(수천 px)에서 맨 위로 안 올라가도 구매 가능하게. sticky 구현이 레이아웃상 어려우면 데스크톱에도 하단 sticky 바 노출(모바일 바의 lg:hidden 해제 + 데스크톱 폭 대응)
+4. **상품 상세 상단 리뷰 요약 (`app/(site)/products/[id]/page.tsx` + 구매 패널/제목 영역)**
+   - 상품명·부제 근처에 별점 평균 + "후기 N개" 요약(클릭 시 하단 후기 섹션으로 앵커 스크롤). 후기 0개면 미표시. ReviewSection 이 이미 집계하므로 동일 집계를 상단에도 전달(중복 쿼리 피하려면 page에서 한 번 조회해 상단·하단 공유)
+5. **선물·대량 주문 진입 강화**
+   - 홈: 하단의 작은 텍스트 링크 → 카탈로그 아래(또는 히어로 CTA)에 눈에 띄는 **버튼/배너**로 승격("여러 곳에 선물 보내기 · 엑셀로 한 번에")
+   - 상품 상세 구매 패널의 선물 링크도 버튼 톤 유지(과하지 않게)
+6. **챗봇 FAB 위치 (`components/chat/ChatWidget.tsx`, widget 소유)**
+   - 플로팅 버튼이 홈 상품 카드/콘텐츠와 겹쳐 보임 → z-index·위치·여백 조정으로 콘텐츠를 가리지 않게. 기존 /products·/order 경로별 위치 로직은 유지하되 홈에서 카드 위에 얹히는 문제 완화(예: 우하단 여백 확대 또는 카드 그리드 우측 패딩)
+
+## 제약
+
+- BRAND v2 톤 유지(이모지·느낌표 금지, 그린 액센트, 헤어라인). 새 라이브러리 금지
+- 결제·주문·리뷰·챗봇 **로직·API·데이터 계약 변경 금지** — 시각/구조/문구만
+- 리뷰 집계는 VISIBLE 만, 페이지 레벨 server component 에서. `lib/db.ts` 인터페이스·`lib/toss.ts`·`lib/auth.ts`·`lib/order-token.ts`·결제 성공/실패 페이지 수정 금지
+- 모바일·데스크톱 둘 다 확인. 구매 플로우(옵션 선택→구매하기→/order) 회귀 없어야
+
+## 파일 소유권 (v2.5 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| storefront | `components/home/*`, `app/(site)/page.tsx`, `components/product/*`, `app/(site)/products/[id]/page.tsx`, `components/order/gift/*`(선물 진입 버튼 톤만), `components/ui/*`(필요 시 Stars 등 추가 — 기존 prop API 유지) |
+| widget | `components/chat/ChatWidget.tsx` |
+
+그 외 읽기 전용.

@@ -3,12 +3,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStore } from '@/lib/db';
+import type { Review } from '@/lib/types';
 import BuyPanel, {
   BuyBar,
   BuyPanelProvider,
 } from '@/components/product/BuyPanel';
 import DetailBlocks from '@/components/product/DetailBlocks';
 import ReviewSection from '@/components/review/ReviewSection';
+import { buttonClasses } from '@/components/ui/Button';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +78,26 @@ export default async function ProductDetailPage({
   const product = await getActiveProduct(id);
   if (!product) notFound();
 
-  const options = await getStore().listOptions(product.id);
+  // 리뷰는 상단 요약(BuyPanel)과 하단 후기 섹션(ReviewSection)이 함께 쓰므로
+  // 페이지에서 한 번만 조회해 양쪽에 넘긴다(중복 쿼리 방지).
+  // 리뷰 조회 실패가 상품 페이지 전체를 죽이면 안 되므로 실패 시 빈 목록으로 강등한다.
+  const [options, reviews] = await Promise.all([
+    getStore().listOptions(product.id),
+    getStore()
+      .listReviews({ productId: product.id })
+      .catch((e) => {
+        console.error('[product] 리뷰 조회 실패 — 후기 없이 렌더합니다:', e);
+        return [] as Review[];
+      }),
+  ]);
+  const reviewCount = reviews.length;
+  // 원 평균(반올림 전)을 상단 요약에 넘긴다. 여기서 소수 1자리로 먼저 반올림하면
+  // Stars 가 다시 정수 반올림하며(이중 반올림) 하단 후기 섹션과 별 개수가 어긋난다.
+  // 숫자 표기(toFixed(1))·별 채움 모두 하단 ReviewSection 과 동일하게 원 평균 기준으로 한다.
+  const reviewAverage =
+    reviewCount > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+      : 0;
   const hasBlocks = product.blocks.length > 0;
   // blocks 가 비어 있을 때만 쓰는 (구) detail 문단 폴백
   const paragraphs = hasBlocks
@@ -112,15 +133,22 @@ export default async function ProductDetailPage({
             </div>
 
             <div className="lg:sticky lg:top-24 lg:self-start">
-              <BuyPanel productName={product.name} subtitle={product.subtitle} />
+              <BuyPanel
+                productName={product.name}
+                subtitle={product.subtitle}
+                reviewCount={reviewCount}
+                reviewAverage={reviewAverage}
+              />
               <div className="mt-4 border-t border-hairline pt-4">
                 <Link
                   href="/order/gift"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-dark"
+                  className={buttonClasses('outline', 'md', 'w-full')}
                 >
-                  선물·대량 주문 (여러 곳에 한 번에)
-                  <span aria-hidden="true">→</span>
+                  선물·대량 주문
                 </Link>
+                <p className="mt-2 text-center text-xs text-muted">
+                  여러 곳에 한 번에 · 엑셀로 대량 주문
+                </p>
               </div>
             </div>
           </div>
@@ -133,10 +161,14 @@ export default async function ProductDetailPage({
           </div>
         )}
 
-        {/* 구매 후기 — v2.2. 상세 블록 아래, 배송 안내 위 */}
-        <div className="mx-auto w-full max-w-5xl px-4 pt-14 sm:px-6 lg:pt-16">
+        {/* 구매 후기 — v2.2. 상세 블록 아래, 배송 안내 위.
+            id="reviews": 상단 리뷰 요약(BuyPanel)의 앵커 대상. 헤더 sticky 만큼 scroll-mt 확보 */}
+        <div
+          id="reviews"
+          className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pt-14 sm:px-6 lg:pt-16"
+        >
           <div className="max-w-3xl">
-            <ReviewSection productId={product.id} />
+            <ReviewSection productId={product.id} reviews={reviews} />
           </div>
         </div>
 
