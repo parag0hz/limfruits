@@ -5,9 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/components/ui/cn";
 
+// 항목 3개 + 로그아웃이 좁은 휴대폰(360px)에서도 한 줄에 들어가도록 짧은 라벨 사용
 const NAV_ITEMS = [
-  { href: "/admin", label: "주문 관리" },
-  { href: "/admin/products", label: "상품 관리" },
+  { href: "/admin", label: "주문" },
+  { href: "/admin/products", label: "상품" },
+  { href: "/admin/reviews", label: "리뷰" },
 ];
 
 export default function AdminNav() {

@@ -37,7 +37,14 @@ export async function GET(req: Request) {
     );
   }
 
-  // 조회에 필요한 정보만 골라서 반환 (paymentKey 등 내부 값 제외)
+  // v2.2: 수령(SHIPPING/DONE) 주문이면 리뷰 작성 여부를 함께 알려준다
+  // — 조회 화면이 "리뷰 쓰기 / 리뷰 작성 완료" 버튼을 바로 구분해 표시 (SPEC v2.2 부록)
+  const hasReview =
+    order.status === 'SHIPPING' || order.status === 'DONE'
+      ? (await getStore().getReviewByOrderNo(order.orderNo)) !== null
+      : false;
+
+  // 조회에 필요한 정보만 골라서 반환 (paymentKey·phone 등 내부 값 제외)
   return NextResponse.json({
     order: {
       orderNo: order.orderNo,
@@ -54,6 +61,7 @@ export async function GET(req: Request) {
       courier: order.courier,
       trackingNo: order.trackingNo,
       createdAt: order.createdAt,
+      hasReview,
     },
   });
 }

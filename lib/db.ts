@@ -5,6 +5,8 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Review,
+  ReviewStatus,
 } from './types';
 import { getMemoryStore } from './db-memory';
 import { getSupabaseStore } from './db-supabase';
@@ -70,6 +72,35 @@ export interface Store {
       trackingNo?: string | null;
     }
   ): Promise<void>;
+  // 리뷰 — v2.2. orderNo unique(주문당 1개), 위반 시 ReviewExistsError
+  createReview(input: {
+    productId: string;
+    orderNo: string;
+    authorName: string;
+    phone: string;
+    rating: number;
+    body: string;
+    photos: string[];
+  }): Promise<Review>;
+  getReviewByOrderNo(orderNo: string): Promise<Review | null>;
+  listReviews(params?: {
+    productId?: string;
+    includeHidden?: boolean;
+    limit?: number;
+  }): Promise<Review[]>; // 최신순
+  setReviewStatus(id: string, status: ReviewStatus): Promise<void>;
+  deleteReview(id: string): Promise<void>;
+}
+
+/**
+ * 주문당 리뷰 1개(unique) 위반 — API가 409로 해석할 수 있게 구분 가능한 에러로 던진다.
+ * `err instanceof ReviewExistsError` 로 판별.
+ */
+export class ReviewExistsError extends Error {
+  constructor(orderNo: string) {
+    super(`이미 리뷰가 등록된 주문입니다: ${orderNo}`);
+    this.name = 'ReviewExistsError';
+  }
 }
 
 /**

@@ -73,6 +73,8 @@ export default function ShippingTools({ paidCount }: { paidCount: number }) {
         담긴 엑셀을 여기에 올리면 주문이 자동으로 배송중이 됩니다.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        {/* 파일 다운로드 엔드포인트라 클라이언트 내비게이션(Link) 대상이 아님 */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/api/admin/orders/export?status=PAID"
           className={cn(

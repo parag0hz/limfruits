@@ -6,8 +6,15 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Review,
+  ReviewStatus,
 } from './types';
-import { generateOrderNo, generateShortId, type Store } from './db';
+import {
+  generateOrderNo,
+  generateShortId,
+  ReviewExistsError,
+  type Store,
+} from './db';
 import { normalizePhone } from './format';
 import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
 
@@ -21,6 +28,8 @@ import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
  *  orders: id, order_no, status, customer_name, phone, postcode, address1,
  *          address2, memo, items(jsonb), total_amount, payment_key,
  *          payment_method, paid_at, courier, tracking_no, created_at
+ *  reviews: id, product_id, order_no(unique), author_name, phone, rating,
+ *           body, photos(jsonb), status, created_at
  */
 
 interface ProductRow {
@@ -62,6 +71,36 @@ interface OrderRow {
   courier: string | null;
   tracking_no: string | null;
   created_at: string;
+}
+
+interface ReviewRow {
+  id: string;
+  product_id: string;
+  order_no: string;
+  author_name: string;
+  phone: string;
+  rating: number;
+  body: string;
+  photos: string[] | unknown; // jsonb — 대시보드 직접 수정 가능성 있어 읽기 시 방어
+  status: ReviewStatus;
+  created_at: string;
+}
+
+function toReview(row: ReviewRow): Review {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    orderNo: row.order_no,
+    authorName: row.author_name,
+    phone: row.phone,
+    rating: row.rating,
+    body: row.body,
+    photos: Array.isArray(row.photos)
+      ? row.photos.filter((p): p is string => typeof p === 'string')
+      : [],
+    status: row.status,
+    createdAt: toIso(row.created_at) ?? row.created_at,
+  };
 }
 
 function toProduct(row: ProductRow): Product {
@@ -440,6 +479,84 @@ class SupabaseStore implements Store {
       .update(row)
       .eq('order_no', orderNo);
     if (error) throw new Error(`주문 수정 실패: ${error.message}`);
+  }
+
+  // ── 리뷰 (v2.2) ───────────────────────────────────────
+
+  async createReview(input: {
+    productId: string;
+    orderNo: string;
+    authorName: string;
+    phone: string;
+    rating: number;
+    body: string;
+    photos: string[];
+  }): Promise<Review> {
+    const { data, error } = await getClient()
+      .from('reviews')
+      .insert({
+        product_id: input.productId,
+        order_no: input.orderNo,
+        author_name: input.authorName,
+        phone: normalizePhone(input.phone),
+        rating: input.rating,
+        body: input.body,
+        photos: input.photos,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        // unique(order_no) 위반 = 이미 리뷰 존재 — API가 409로 해석
+        throw new ReviewExistsError(input.orderNo);
+      }
+      throw new Error(`리뷰 등록 실패: ${error.message}`);
+    }
+    return toReview(data as ReviewRow);
+  }
+
+  async getReviewByOrderNo(orderNo: string): Promise<Review | null> {
+    const { data, error } = await getClient()
+      .from('reviews')
+      .select('*')
+      .eq('order_no', orderNo)
+      .maybeSingle();
+    if (error) throw new Error(`리뷰 조회 실패: ${error.message}`);
+    return data ? toReview(data as ReviewRow) : null;
+  }
+
+  async listReviews(params?: {
+    productId?: string;
+    includeHidden?: boolean;
+    limit?: number;
+  }): Promise<Review[]> {
+    let query = getClient()
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (params?.productId !== undefined) {
+      query = query.eq('product_id', params.productId);
+    }
+    if (!params?.includeHidden) {
+      query = query.eq('status', 'VISIBLE' satisfies ReviewStatus);
+    }
+    if (params?.limit !== undefined) query = query.limit(params.limit);
+    const { data, error } = await query;
+    if (error) throw new Error(`리뷰 목록 조회 실패: ${error.message}`);
+    return (data as ReviewRow[]).map(toReview);
+  }
+
+  async setReviewStatus(id: string, status: ReviewStatus): Promise<void> {
+    const { error } = await getClient()
+      .from('reviews')
+      .update({ status })
+      .eq('id', id);
+    if (error) throw new Error(`리뷰 상태 변경 실패: ${error.message}`);
+  }
+
+  async deleteReview(id: string): Promise<void> {
+    const { error } = await getClient().from('reviews').delete().eq('id', id);
+    if (error) throw new Error(`리뷰 삭제 실패: ${error.message}`);
   }
 }
 

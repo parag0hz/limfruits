@@ -44,6 +44,9 @@ export default async function AdminOrderDetailPage({
     );
   }
 
+  // v2.2: 이 주문에 리뷰가 있으면 리뷰 관리로 바로가기 링크 표시
+  const review = await store.getReviewByOrderNo(order.orderNo);
+
   const fullAddress = [
     order.postcode ? `(${order.postcode})` : "",
     order.address1,
@@ -165,6 +168,16 @@ export default async function AdminOrderDetailPage({
           )}
         </dl>
       </Card>
+
+      {/* 이 주문의 리뷰 (v2.2) */}
+      {review && (
+        <Link
+          href={`/admin/reviews#review-${review.id}`}
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-hairline bg-white px-6 text-lg font-semibold text-brand-dark transition-colors hover:bg-surface"
+        >
+          이 주문의 리뷰 보기
+        </Link>
+      )}
 
       {/* 상태 변경 액션 */}
       <OrderActions

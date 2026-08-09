@@ -314,3 +314,29 @@ insert into public.product_options (id, product_id, name, description, price, so
   ('pj-50',  'pear-juice', '50봉지',  '낱개 파우치', 30000, false, 1),
   ('pj-100', 'pear-juice', '100봉지', '낱개 파우치', 50000, false, 2)
 on conflict (id) do nothing;
+
+-- ─────────────────────────────────────────────────────────
+-- v2.2 리뷰 — 구매자 포토 리뷰 (주문당 1개). 시드 없음.
+-- 기존 설치 사용자는 이 절만 다시 실행해도 안전합니다 (모든 문장 멱등).
+
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  product_id text not null,       -- products.id 참조 (FK 없음 — 상품 삭제 후에도 리뷰 유지)
+  order_no text not null unique,  -- 주문당 리뷰 1개
+  author_name text not null,      -- 주문자명 원본. 화면 표시는 앱에서 마스킹(김*원)
+  phone text not null,            -- 숫자만. 검증용 — API 응답·화면 노출 금지
+  rating integer not null check (rating between 1 and 5),
+  body text not null,             -- 10~2000자 (길이 검증은 API에서)
+  photos jsonb not null default '[]',  -- Storage 공개 URL 배열 (최대 3)
+  status text not null default 'VISIBLE'
+    check (status in ('VISIBLE', 'HIDDEN')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists reviews_product_id_idx
+  on public.reviews (product_id);
+create index if not exists reviews_created_at_idx
+  on public.reviews (created_at desc);
+
+-- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
+alter table public.reviews enable row level security;

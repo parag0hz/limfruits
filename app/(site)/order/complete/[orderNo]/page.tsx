@@ -196,6 +196,7 @@ export default async function OrderCompletePage({
         <ul className="mt-3 flex list-disc flex-col gap-1.5 pl-5 text-ink/85">
           <li>결제 확인 후 산지에서 선별·포장해 주문 순서대로 발송합니다.</li>
           <li>발송이 시작되면 주문조회에서 운송장 번호를 확인하실 수 있습니다.</li>
+          <li>상품을 받으신 뒤 주문조회에서 후기를 남길 수 있습니다.</li>
           <li>
             주문 내용 변경이나 취소가 필요하시면 발송 전에 판매자에게 문의해
             주세요.

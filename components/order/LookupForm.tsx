@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/Badge';
 import OrderStatusTimeline from './OrderStatusTimeline';
 import CopyButton from './CopyButton';
+import ReviewForm from '@/components/review/ReviewForm';
 
 /** GET /api/orders/lookup 응답의 주문 (내부 정보 제외 버전) */
 interface LookupOrder {
@@ -26,6 +27,8 @@ interface LookupOrder {
   courier: string | null;
   trackingNo: string | null;
   createdAt: string;
+  /** v2.2 — 이 주문에 이미 리뷰가 있으면 true (SHIPPING/DONE 주문만 판단) */
+  hasReview?: boolean;
 }
 
 /** "나주배 가정용 3kg" — 주문 시점 스냅샷 기준 표시명 */
@@ -45,11 +48,19 @@ export default function LookupForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<LookupOrder | null>(null);
+  // v2.2 리뷰 — 인라인 폼 확장 / 작성 완료 여부 (조회할 때마다 리셋)
+  // lookupPhone: 조회에 실제로 사용한 연락처. 조회 후 입력값이 바뀌어도
+  // 리뷰 제출은 인증에 성공한 값으로 보낸다 (URL 로는 절대 넘기지 않음)
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
+  const [lookupPhone, setLookupPhone] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setOrder(null);
+    setReviewOpen(false);
+    setReviewDone(false);
 
     if (!orderNo.trim()) {
       setError('주문번호를 입력해 주세요.');
@@ -79,6 +90,9 @@ export default function LookupForm({
         return;
       }
       setOrder(data.order);
+      setLookupPhone(phone.trim());
+      // 이미 리뷰를 쓴 주문이면 "리뷰 작성 완료" 비활성 버튼을 바로 보여준다
+      setReviewDone(data.order.hasReview === true);
     } catch {
       setError('조회 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
@@ -180,6 +194,49 @@ export default function LookupForm({
                   확인하실 수 있습니다.
                 </p>
               )}
+            </Card>
+          )}
+
+          {/* 구매 후기 — 수령(SHIPPING/DONE) 후에만 작성 가능 */}
+          {(order.status === 'SHIPPING' || order.status === 'DONE') && (
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-ink">
+                    구매 후기
+                  </h3>
+                  <p className="mt-1 text-sm text-muted">
+                    받으신 상품에 대한 후기를 남겨 주세요.
+                  </p>
+                </div>
+                {reviewDone ? (
+                  <Button disabled>리뷰 작성 완료</Button>
+                ) : (
+                  !reviewOpen && (
+                    <Button onClick={() => setReviewOpen(true)}>
+                      리뷰 쓰기
+                    </Button>
+                  )
+                )}
+              </div>
+              {/* 닫았다 다시 열어도 입력값이 남도록 언마운트 대신 hidden 처리.
+                  다른 주문을 조회하면 key 가 바뀌어 폼이 초기화된다 */}
+              <div
+                className={
+                  reviewOpen ? 'mt-5 border-t border-hairline pt-5' : 'hidden'
+                }
+              >
+                <ReviewForm
+                  key={order.orderNo}
+                  orderNo={order.orderNo}
+                  phone={lookupPhone}
+                  onSuccess={() => setReviewDone(true)}
+                  // 다른 탭/기기에서 이미 작성한 경우(409): 폼을 닫지 않고
+                  // 폼 안의 에러 안내를 그대로 보여준다 (닫으면 안내가 사라짐)
+                  onDuplicate={() => setReviewDone(true)}
+                  onClose={() => setReviewOpen(false)}
+                />
+              </div>
             </Card>
           )}
 

@@ -182,3 +182,75 @@ export type DetailBlock =
 | admin | `app/admin/**`, `app/api/admin/**` |
 
 그 외 파일은 읽기 전용(변경 요청은 `notes/<이름>.md`). `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지.
+
+---
+
+# v2.2 부록 — 구매자 포토 리뷰
+
+회원가입 없는 사이트이므로 **주문번호 + 전화번호 인증(주문조회와 동일)** 을 통과한 구매자만 리뷰를 쓴다. 주문 1건당 리뷰 1개.
+
+## 데이터 모델 — `lib/types.ts`
+
+```ts
+export type ReviewStatus = 'VISIBLE' | 'HIDDEN';
+
+export interface Review {
+  id: string;            // uuid
+  productId: string;
+  orderNo: string;       // 주문당 1개 (unique)
+  authorName: string;    // 주문자명 원본 저장. 화면 표시는 항상 마스킹(김*원)
+  phone: string;         // 숫자만. 검증용 — API 응답·화면에 절대 노출 금지
+  rating: number;        // 1~5 정수
+  body: string;          // 10~2000자
+  photos: string[];      // Storage 공개 URL 최대 3개
+  status: ReviewStatus;  // 기본 VISIBLE, 관리자가 숨김 가능
+  createdAt: string;
+}
+```
+
+## Store 확장 — `lib/db.ts`
+
+```ts
+createReview(input: { productId; orderNo; authorName; phone; rating; body; photos }): Promise<Review>;
+getReviewByOrderNo(orderNo: string): Promise<Review | null>;
+listReviews(params?: { productId?: string; includeHidden?: boolean; limit?: number }): Promise<Review[]>; // 최신순
+setReviewStatus(id: string, status: ReviewStatus): Promise<void>;
+deleteReview(id: string): Promise<void>;
+```
+
+- `supabase/schema.sql`: `reviews` 테이블(order_no unique, product_id index, RLS enable + 정책 없음). 시드 없음
+- 메모리 스토어: 동일 동작. **데모 모드에서는 사진 업로드가 불가하므로 사진은 무시**(응답에 안내 포함)
+
+## 사진 저장 — `lib/storage.ts` (data 소유, 신규)
+
+- `uploadReviewPhoto(orderNo, index, file: { bytes: ArrayBuffer; contentType })` → 공개 URL
+- Supabase Storage REST 사용. **주의: `Authorization: Bearer`가 아니라 `apikey` 헤더로 인증** (sb_secret 키는 Bearer JWT 파싱에서 거부됨)
+- 버킷 `reviews`(public). 업로드 전 버킷 생성 시도(이미 있으면 409 무시) — 신규 설치에도 자동 동작
+- 경로: `reviews/{orderNo}/{index}.{ext}`
+
+## API
+
+| 메서드/경로 | 설명 |
+|---|---|
+| `POST /api/reviews` | multipart FormData: `orderNo, phone, rating, body, photos[]`(최대 3). 검증 순서: ① `findOrder(orderNo, phone)` 실패 시 404 ② 주문 상태 SHIPPING/DONE 아니면 400("상품을 받으신 뒤 작성할 수 있습니다") ③ 이미 리뷰 있으면 409 ④ rating 1~5 정수, body 10~2000자 ⑤ 사진: 각 5MB 이하, **매직 바이트로 실제 이미지(jpeg/png/webp) 확인**(Content-Type 헤더만 믿지 말 것), 3장 초과 400. 성공 시 생성된 리뷰 반환(phone 제외) |
+| `PATCH /api/admin/reviews/[id]` | `{ status }` — requireAdmin |
+| `DELETE /api/admin/reviews/[id]` | requireAdmin. Storage의 해당 사진 객체도 삭제 시도(실패해도 행 삭제는 진행) |
+
+공개 GET API는 없음 — 상세페이지가 server component에서 store를 직접 읽는다.
+
+## 화면
+
+- **작성 진입**: `/order/lookup` 조회 결과에서 SHIPPING/DONE 주문에 "리뷰 쓰기" 버튼(이미 리뷰 있으면 "리뷰 작성 완료" 비활성). 클릭 시 **같은 화면에서 인라인 폼 확장** (조회에 쓴 orderNo·phone을 클라이언트 state로 재사용 — URL로 전화번호를 넘기지 말 것). 별점(큰 터치 타깃 star picker), 본문 textarea, 사진 선택(최대 3장, 선택 즉시 썸네일 미리보기·개별 제거), 제출 → 성공 시 "리뷰가 등록되었습니다" + 상품 페이지 링크
+- **상품 상세**(`/products/[id]`): 상세 블록 아래 "구매 후기" 섹션 — 평균 별점(★ 채움)과 개수 요약, 리뷰 카드 목록(마스킹 이름 · 날짜 · 별점 · 사진 썸네일 가로 스크롤 · 본문). 사진 탭 시 원본을 새 탭으로. 리뷰 0개면 "아직 후기가 없습니다. 첫 후기를 남겨 주세요" + 주문조회 링크. 최근 30개 표시
+- **주문 완료 페이지**: "상품을 받으신 뒤 주문조회에서 후기를 남길 수 있습니다" 한 줄 추가
+- **관리자** `/admin/reviews` (AdminNav에 "리뷰" 추가): 전체 리뷰 목록(숨김 포함, 상품명·마스킹 아닌 실명·별점·본문·사진·상태) — 카드마다 "숨기기/보이기" 토글과 "삭제"(confirm). 장년층 기준 큰 버튼
+
+## 파일 소유권 (v2.2 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `lib/storage.ts`(신규), `supabase/schema.sql` |
+| storefront | `app/api/reviews/**`, `components/review/*`(신규), `components/order/LookupForm.tsx`, `app/(site)/products/[id]/page.tsx`(리뷰 섹션 추가만), `app/(site)/order/complete/**`(안내 한 줄), `app/(site)/order/lookup/**` |
+| admin | `app/admin/**`, `app/api/admin/reviews/**` |
+
+그 외 읽기 전용. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지. 기존 결제·주문 로직 변경 금지.

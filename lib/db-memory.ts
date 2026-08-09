@@ -5,14 +5,22 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Review,
+  ReviewStatus,
 } from './types';
-import { generateOrderNo, generateShortId, type Store } from './db';
+import {
+  generateOrderNo,
+  generateShortId,
+  ReviewExistsError,
+  type Store,
+} from './db';
 import { normalizePhone } from './format';
 
 interface MemoryData {
   products: Product[];
   options: ProductOption[];
   orders: Order[];
+  reviews: Review[]; // v2.2 — 시드 없음
 }
 
 /**
@@ -541,7 +549,13 @@ function getData(): MemoryData {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
+      reviews: [],
     };
+  }
+  // v2.2: reviews 필드 추가 — 키를 올리지 않고 기존 HMR 객체에 없으면 채워 넣는다
+  // (배열 추가는 구 스키마 데이터와 충돌하지 않으므로 시드 데이터 유지)
+  if (!g.__limfruitsMemoryDbV2_2.reviews) {
+    g.__limfruitsMemoryDbV2_2.reviews = [];
   }
   return g.__limfruitsMemoryDbV2_2;
 }
@@ -792,6 +806,78 @@ class MemoryStore implements Store {
     if (patch.status !== undefined) order.status = patch.status;
     if (patch.courier !== undefined) order.courier = patch.courier;
     if (patch.trackingNo !== undefined) order.trackingNo = patch.trackingNo;
+  }
+
+  // ── 리뷰 (v2.2) ───────────────────────────────────────
+
+  async createReview(input: {
+    productId: string;
+    orderNo: string;
+    authorName: string;
+    phone: string;
+    rating: number;
+    body: string;
+    photos: string[];
+  }): Promise<Review> {
+    const data = getData();
+    if (data.reviews.some((r) => r.orderNo === input.orderNo)) {
+      // Supabase unique(order_no) 위반과 동일하게 구분 가능한 에러로
+      throw new ReviewExistsError(input.orderNo);
+    }
+    const review: Review = {
+      id: randomUUID(),
+      productId: input.productId,
+      orderNo: input.orderNo,
+      authorName: input.authorName,
+      phone: normalizePhone(input.phone),
+      rating: input.rating,
+      body: input.body,
+      photos: [...input.photos],
+      status: 'VISIBLE',
+      createdAt: new Date().toISOString(),
+    };
+    data.reviews.push(review);
+    return clone(review);
+  }
+
+  async getReviewByOrderNo(orderNo: string): Promise<Review | null> {
+    const review = getData().reviews.find((r) => r.orderNo === orderNo);
+    return review ? clone(review) : null;
+  }
+
+  async listReviews(params?: {
+    productId?: string;
+    includeHidden?: boolean;
+    limit?: number;
+  }): Promise<Review[]> {
+    let reviews = [...getData().reviews];
+    if (params?.productId !== undefined) {
+      reviews = reviews.filter((r) => r.productId === params.productId);
+    }
+    if (!params?.includeHidden) {
+      reviews = reviews.filter((r) => r.status === 'VISIBLE');
+    }
+    reviews.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    if (params?.limit !== undefined) {
+      reviews = reviews.slice(0, params.limit);
+    }
+    return clone(reviews);
+  }
+
+  async setReviewStatus(id: string, status: ReviewStatus): Promise<void> {
+    const review = getData().reviews.find((r) => r.id === id);
+    if (!review) {
+      throw new Error(`리뷰를 찾을 수 없습니다: ${id}`);
+    }
+    review.status = status;
+  }
+
+  /** 없는 id면 조용히 무시(멱등 — Supabase delete와 동일 동작) */
+  async deleteReview(id: string): Promise<void> {
+    const data = getData();
+    data.reviews = data.reviews.filter((r) => r.id !== id);
   }
 }
 

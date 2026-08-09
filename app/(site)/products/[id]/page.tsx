@@ -7,6 +7,7 @@ import BuyPanel, {
   BuyPanelProvider,
 } from '@/components/product/BuyPanel';
 import DetailBlocks from '@/components/product/DetailBlocks';
+import ReviewSection from '@/components/review/ReviewSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +122,13 @@ export default async function ProductDetailPage({
             <DetailBlocks blocks={product.blocks} />
           </div>
         )}
+
+        {/* 구매 후기 — v2.2. 상세 블록 아래, 배송 안내 위 */}
+        <div className="mx-auto w-full max-w-5xl px-4 pt-14 sm:px-6 lg:pt-16">
+          <div className="max-w-3xl">
+            <ReviewSection productId={product.id} />
+          </div>
+        </div>
 
         {/* 하단: 배송·환불·문의 안내 (blocks 비면 detail 문단 폴백 포함) */}
         <div

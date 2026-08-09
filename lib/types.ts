@@ -41,6 +41,22 @@ export interface OrderItem {
   quantity: number;
 }
 
+/** v2.2 구매자 포토 리뷰 — SPEC v2.2 부록 참고 */
+export type ReviewStatus = 'VISIBLE' | 'HIDDEN';
+
+export interface Review {
+  id: string;            // uuid
+  productId: string;
+  orderNo: string;       // 주문당 1개 (unique)
+  authorName: string;    // 주문자명 원본 저장. 화면 표시는 항상 마스킹(김*원)
+  phone: string;         // 숫자만. 검증용 — API 응답·화면에 절대 노출 금지
+  rating: number;        // 1~5 정수
+  body: string;          // 10~2000자
+  photos: string[];      // Storage 공개 URL 최대 3개
+  status: ReviewStatus;  // 기본 VISIBLE, 관리자가 숨김 가능
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   orderNo: string;      // "LF-YYYYMMDD-XXXXXXXX" (대문자 영숫자 8자리 랜덤)
