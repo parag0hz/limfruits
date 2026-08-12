@@ -50,23 +50,23 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "나주에서 수확한 그대로."
   },
   {
-    "type": "text",
-    "body": "재배부터 수확, 선별, 포장까지 전남 나주 과수원에서 직접 하고, 주문 확인 후 산지에서 바로 발송합니다."
+    "body": "재배부터 수확, 선별, 포장까지 전남 나주 과수원에서 직접 하고, 주문 확인 후 산지에서 바로 발송합니다.",
+    "type": "text"
   },
   {
-    "type": "image",
     "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/hero.jpg",
+    "type": "image",
     "caption": "수확한 나주배"
   },
   {
+    "body": "농림축산식품부 우수관리인증 제 1006050호",
     "type": "badge",
-    "title": "GAP 우수관리인증",
-    "body": "농림축산식품부 우수관리인증 제 1006050호"
+    "title": "GAP 우수관리인증"
   },
   {
+    "body": "광주남구점 · 나주혁신점 · 산포농협 · 북광주농협",
     "type": "badge",
-    "title": "농협 로컬푸드 직매장 입점",
-    "body": "광주남구점 · 나주혁신점 · 산포농협 · 북광주농협"
+    "title": "농협 로컬푸드 직매장 입점"
   },
   {
     "type": "heading",
@@ -74,19 +74,24 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "세 가지 배를 재배합니다."
   },
   {
+    "body": "과실이 크고 과육이 부드럽습니다. 신맛이 적고 저장성이 좋아 오래 두고 먹기 좋습니다.",
     "type": "badge",
-    "title": "신고배 · 가장 대중적인 품종",
-    "body": "과실이 크고 과육이 부드럽습니다. 신맛이 적고 저장성이 좋아 오래 두고 먹기 좋습니다."
+    "title": "신고배 · 가장 대중적인 품종"
   },
   {
+    "body": "껍질이 얇고 석세포가 적어 식감이 아삭하고 당도가 우수합니다. 수령 후에는 냉장 보관을 권장합니다.",
     "type": "badge",
-    "title": "풍수배 · 아삭한 식감",
-    "body": "껍질이 얇고 석세포가 적어 식감이 아삭하고 당도가 우수합니다. 수령 후에는 냉장 보관을 권장합니다."
+    "title": "풍수배 · 아삭한 식감"
   },
   {
+    "body": "배향이 진하고 감미가 높습니다. 표면이 노란빛을 띠고 과즙이 풍부합니다.",
     "type": "badge",
-    "title": "황금배 · 진한 향과 높은 감미",
-    "body": "배향이 진하고 감미가 높습니다. 표면이 노란빛을 띠고 과즙이 풍부합니다."
+    "title": "황금배 · 진한 향과 높은 감미"
+  },
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/cut.jpg",
+    "caption": "잘라 보면 과육이 촘촘한 나주배"
   },
   {
     "type": "heading",
@@ -94,8 +99,13 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "유통 단계를 줄였습니다."
   },
   {
-    "type": "text",
-    "body": "일반적인 유통은 농장에서 경매장, 도매상, 소매점을 거쳐 가정에 도착합니다. 임과일 나주배는 농장에서 바로 출발해 중간 단계 없이 도착합니다.\n\n중간 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다."
+    "body": "일반적인 유통은 농장에서 경매장, 도매상, 소매점을 거쳐 가정에 도착합니다. 임과일 나주배는 농장에서 바로 출발해 중간 단계 없이 도착합니다.\n\n중간 단계가 없어 수확 후 도착까지 걸리는 시간이 짧습니다.",
+    "type": "text"
+  },
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/farm-truck.gif",
+    "caption": "수확한 배를 산지에서 바로 실어 보냅니다"
   },
   {
     "type": "heading",
@@ -103,21 +113,21 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "주문 확인 후 당일 수확합니다."
   },
   {
+    "body": "주문을 확인한 뒤 잘 익은 배만 골라 당일 수확합니다.",
     "type": "point",
     "title": "수확",
-    "body": "주문을 확인한 뒤 잘 익은 배만 골라 당일 수확합니다.",
     "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/step-harvest.jpg"
   },
   {
+    "body": "전자식 선별기로 크기와 무게를 확인해 1차 선별합니다.",
     "type": "point",
     "title": "선별",
-    "body": "전자식 선별기로 크기와 무게를 확인해 1차 선별합니다.",
     "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/step-sorting.jpg"
   },
   {
+    "body": "육안으로 2차 검수한 뒤 하나하나 완충 포장합니다.",
     "type": "point",
     "title": "검수와 포장",
-    "body": "육안으로 2차 검수한 뒤 하나하나 완충 포장합니다.",
     "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/step-packing.jpg"
   },
   {
@@ -126,13 +136,18 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "재배부터 포장까지 직접 합니다."
   },
   {
-    "type": "text",
-    "body": "임과일은 전남 나주에서 과수원을 직접 운영합니다. 재배와 수확, 선별, 포장, 발송까지 전 과정을 농장에서 관리합니다."
+    "body": "임과일은 전남 나주에서 과수원을 직접 운영합니다. 재배와 수확, 선별, 포장, 발송까지 전 과정을 농장에서 관리합니다.",
+    "type": "text"
   },
   {
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/blossom.jpg",
     "type": "image",
-    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/orchard.jpg",
-    "caption": "봉지를 씌워 기르는 임과일 과수원"
+    "caption": "봄이면 과수원 가득 피는 배꽃"
+  },
+  {
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/on-tree.jpg",
+    "type": "image",
+    "caption": "봉지를 씌워 나무에서 기른 나주배"
   },
   {
     "type": "heading",
@@ -140,8 +155,6 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "상품 구성"
   },
   {
-    "type": "specs",
-    "title": "배송비 포함가",
     "rows": [
       {
         "k": "선물세트 7.5kg",
@@ -159,11 +172,13 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
         "k": "가정용 15kg",
         "v": "24과 내"
       }
-    ]
+    ],
+    "type": "specs",
+    "title": "배송비 포함가"
   },
   {
-    "type": "text",
-    "body": "구성과 크기는 작황에 따라 조금씩 달라질 수 있습니다. 옵션별 가격은 상단 구매하기에서 확인해 주세요."
+    "body": "구성과 크기는 작황에 따라 조금씩 달라질 수 있습니다. 옵션별 가격은 상단 구매하기에서 확인해 주세요.",
+    "type": "text"
   },
   {
     "type": "heading",
@@ -171,19 +186,24 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "포장·배송 안내"
   },
   {
-    "type": "image",
     "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/giftbox.jpg",
+    "type": "image",
     "caption": "완충 포장한 선물세트"
   },
   {
-    "type": "notice",
-    "title": "이렇게 보내드립니다",
-    "body": "배 하나하나 완충재로 감싸 포장합니다.\n\n주문 확인 후 산지에서 바로 발송합니다.\n\n명절 성수기에는 주문 순서대로 순차 발송합니다."
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/naju-pear/wrap.jpg",
+    "type": "image",
+    "caption": "임과일 선물 보자기 포장"
   },
   {
+    "body": "배 하나하나 완충재로 감싸 포장합니다.\n\n주문 확인 후 산지에서 바로 발송합니다.\n\n명절 성수기에는 주문 순서대로 순차 발송합니다.",
     "type": "notice",
-    "title": "확인해 주세요",
-    "body": "농산물 특성상 크기, 모양, 색이 사진과 다소 다를 수 있습니다.\n\n수령 후에는 냉장 보관을 권장하며, 상온에서는 서늘하고 통풍이 잘 되는 곳에 두세요."
+    "title": "이렇게 보내드립니다"
+  },
+  {
+    "body": "농산물 특성상 크기, 모양, 색이 사진과 다소 다를 수 있습니다.\n\n수령 후에는 냉장 보관을 권장하며, 상온에서는 서늘하고 통풍이 잘 되는 곳에 두세요.",
+    "type": "notice",
+    "title": "확인해 주세요"
   },
   {
     "type": "heading",
@@ -191,11 +211,10 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
     "title": "전라남도 나주시"
   },
   {
-    "type": "text",
-    "body": "전라남도 나주시 덕룡로 33-8 풍천대봉감농원에서 재배하고 발송합니다."
+    "body": "전라남도 나주시 덕룡로 33-8 풍천대봉감농원에서 재배하고 발송합니다.",
+    "type": "text"
   },
   {
-    "type": "specs",
     "rows": [
       {
         "k": "생산자",
@@ -209,7 +228,8 @@ const NAJU_PEAR_BLOCKS: DetailBlock[] = [
         "k": "카카오톡",
         "v": "limcon1"
       }
-    ]
+    ],
+    "type": "specs"
   }
 ];
 
