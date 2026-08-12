@@ -80,6 +80,11 @@ export default function GiftOrderForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // 상점 동의 (토스 결제위젯 약관과 별개) — v2.7. 선물주문은 보내는 분(주문자) 동의로 저장
+  const [storeAgreed, setStoreAgreed] = useState(false); // [필수] 미체크 시 결제 차단
+  const [marketingAgreed, setMarketingAgreed] = useState(false); // [선택] marketingConsent
+  const [consentError, setConsentError] = useState(false);
+
   const optionMap = useMemo(
     () => new Map(options.map((o) => [o.id, o])),
     [options]
@@ -293,6 +298,17 @@ export default function GiftOrderForm({
       setSubmitError('받는 분을 한 명 이상 추가해 주세요.');
       return;
     }
+    // 상점 필수 동의 (개인정보 수집·이용/이용약관/개인정보처리방침) — 미체크 시 결제 차단
+    if (!storeAgreed) {
+      setConsentError(true);
+      setSubmitError(
+        '결제 진행을 위해 필수 동의 항목에 동의해 주세요.'
+      );
+      document
+        .getElementById('gift-consent')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (!widgetsRef.current || !widgetReady) {
       setSubmitError(
         '결제 화면이 아직 준비되지 않았어요. 잠시 후 다시 눌러 주세요.'
@@ -313,6 +329,7 @@ export default function GiftOrderForm({
           senderName: senderName.trim(),
           senderPhone: normalizePhone(senderPhone),
           memo: '',
+          marketingConsent: marketingAgreed,
           shipments: recipients.map((r) => ({
             recipientName: r.recipientName.trim(),
             phone: normalizePhone(r.phone),
@@ -375,6 +392,8 @@ export default function GiftOrderForm({
     recipients,
     widgetReady,
     agreedRequiredTerms,
+    storeAgreed,
+    marketingAgreed,
     senderName,
     senderPhone,
   ]);
@@ -515,6 +534,72 @@ export default function GiftOrderForm({
                 <div id="toss-agreement" />
               </>
             )}
+          </Card>
+
+          {/* 상점 동의 (토스 결제위젯 약관과 별개) */}
+          <Card id="gift-consent">
+            <h2 className="text-lg font-bold tracking-tight text-ink">
+              주문 동의
+            </h2>
+            <div className="mt-3 flex flex-col">
+              <label className="flex min-h-[44px] cursor-pointer items-start gap-3 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={storeAgreed}
+                  onChange={(e) => {
+                    setStoreAgreed(e.target.checked);
+                    if (e.target.checked) {
+                      setConsentError(false);
+                      setSubmitError(null);
+                    }
+                  }}
+                  aria-invalid={consentError}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
+                />
+                <span className="text-sm leading-relaxed text-ink">
+                  <span className="font-semibold text-brand">[필수]</span> 주문
+                  내용을 확인했으며, 개인정보 수집·이용 및{' '}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand underline underline-offset-2"
+                  >
+                    이용약관
+                  </a>
+                  ·
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand underline underline-offset-2"
+                  >
+                    개인정보처리방침
+                  </a>
+                  에 동의합니다.
+                </span>
+              </label>
+              {consentError && (
+                <p
+                  className="pl-8 text-sm font-medium text-danger"
+                  role="alert"
+                >
+                  필수 동의 항목에 동의해 주셔야 결제를 진행할 수 있어요.
+                </p>
+              )}
+              <label className="flex min-h-[44px] cursor-pointer items-start gap-3 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={marketingAgreed}
+                  onChange={(e) => setMarketingAgreed(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
+                />
+                <span className="text-sm leading-relaxed text-ink">
+                  <span className="font-semibold text-muted">[선택]</span> 광고성
+                  정보(문자) 수신에 동의합니다. 명절·행사 소식을 보내드립니다.
+                </span>
+              </label>
+            </div>
           </Card>
 
           {/* 합계 + 결제 (데스크톱) */}

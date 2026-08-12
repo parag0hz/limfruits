@@ -11,6 +11,8 @@ import BuyPanel, {
 import DetailBlocks from '@/components/product/DetailBlocks';
 import ReviewSection from '@/components/review/ReviewSection';
 import { buttonClasses } from '@/components/ui/Button';
+import JsonLd from '@/components/seo/JsonLd';
+import { absoluteImage, productSchema } from '@/components/seo/schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,10 +35,28 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const product = await getActiveProduct(id);
-  if (!product) return { title: '상품을 찾을 수 없습니다' };
+  if (!product)
+    return {
+      title: '상품을 찾을 수 없습니다',
+      robots: { index: false, follow: false },
+    };
+  const description = product.subtitle || `${product.name} — 임과일 산지 직송`;
+  const canonical = `/products/${encodeURIComponent(product.id)}`;
+  // 대표 이미지가 있으면 그것을, 없으면 로고를 OG 이미지로. (절대 URL 로 확정)
+  const ogImage = absoluteImage(product.imageUrl);
   return {
     title: product.name,
-    description: product.subtitle || `${product.name} — 임과일 산지 직송`,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title: product.name,
+      description,
+      url: canonical,
+      images: [ogImage],
+      siteName: '임과일',
+      locale: 'ko_KR',
+      type: 'website',
+    },
   };
 }
 
@@ -113,6 +133,16 @@ export default async function ProductDetailPage({
           내용 단위로 max-w-5xl 컬럼을 준다. BuyBar 는 이 래퍼의 마지막
           요소여야 sticky 가 페이지 끝까지 동작한다 */}
       <div className="w-full">
+        {/* 구조화 데이터 — Product(가격·재고·리뷰 요약). 렌더에 영향 없는 script 노드 */}
+        <JsonLd
+          data={productSchema({
+            product,
+            options,
+            reviewCount,
+            reviewAverage,
+          })}
+        />
+
         {/* 상단: 이미지 + 구매 패널 */}
         <div className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6 lg:pt-10">
           <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12">

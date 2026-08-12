@@ -27,6 +27,7 @@ interface GiftBody {
   senderPhone?: unknown;
   memo?: unknown;
   shipments?: unknown;
+  marketingConsent?: unknown;
 }
 
 function asTrimmedString(v: unknown): string {
@@ -58,6 +59,8 @@ export async function POST(req: Request) {
   const senderName = asTrimmedString(body.senderName);
   const senderPhone = normalizePhone(asTrimmedString(body.senderPhone));
   const memo = asTrimmedString(body.memo);
+  // v2.7 — 보내는 분(주문자)의 광고성 정보 수신 동의 (선택). 명시적 true 만 동의, 기본 false.
+  const marketingConsent = body.marketingConsent === true;
 
   if (!senderName) {
     return badRequest('보내는 분 성함을 입력해 주세요.');
@@ -188,6 +191,7 @@ export async function POST(req: Request) {
     memo,
     shipments: prepared,
     totalAmount: total,
+    marketingConsent,
   });
 
   return NextResponse.json({

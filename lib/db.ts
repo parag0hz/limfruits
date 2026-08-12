@@ -54,6 +54,7 @@ export interface Store {
     address1: string;
     address2: string;
     memo: string;
+    marketingConsent?: boolean; // v2.7 — 광고성 수신 동의 (생략 시 false)
   }): Promise<Order>; // orderNo 생성 포함, status PENDING
   getOrderByNo(orderNo: string): Promise<Order | null>;
   findOrder(orderNo: string, phone: string): Promise<Order | null>; // phone 숫자만 비교
@@ -88,6 +89,7 @@ export interface Store {
       items: OrderItem[]; // 서버가 옵션 조회로 스냅샷 채움
     }>;
     totalAmount: number;
+    marketingConsent?: boolean; // v2.7 — 보내는 분(주문자) 광고성 수신 동의 (생략 시 false)
   }): Promise<Order>; // kind:'GIFT', orderNo 생성 포함, status PENDING
   updateShipment(
     orderNo: string,

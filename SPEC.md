@@ -529,3 +529,62 @@ updatePromo(patch: Partial<Promo>): Promise<void>;
 | admin | `app/admin/(dashboard)/promo/**`(신규), `app/api/admin/promo/**`(신규), `app/admin/(dashboard)/AdminNav.tsx`(링크 추가만) |
 
 그 외 읽기 전용. 결제·주문·리뷰·챗봇·선물주문 로직 변경 금지. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지.
+
+---
+
+# v2.7 부록 — 오픈 준비 (개인정보처리방침·이용약관·수신동의·SEO)
+
+실제 오픈·토스 실결제 심사 전 필수. ① 법적 문서 페이지 ② 주문 시 동의 체크박스(필수 구매/개인정보 동의 + 선택 마케팅 수신동의) ③ SEO 기술 작업. 결제 금액·승인 로직 변경 금지(동의 체크는 결제 진행 게이트만).
+
+## 확정 사업자 정보 (지어내지 말고 이 값만 사용)
+- 상호: 풍천대봉감농원 · 대표자/개인정보 보호책임자: 임용균 · 연락처: 010-2618-5151
+- 사업자등록번호: 412-90-42034 · 통신판매업신고: 제2011-전남나주-60호
+- 주소: 전라남도 나주시 덕룡로 33-8 · 카카오톡: limcon1
+- 시행일: 방침·약관 하단에 "시행일 2026-08-10" (오늘)
+- 브랜드: 임과일 (limfruits), 나주배·황금배·도라지배즙 판매
+
+## ① 법적 문서 (content 소유) — `app/(site)/privacy/page.tsx`, `app/(site)/terms/page.tsx`
+- BRAND v2 타이포(긴 문서 페이지, max-w-3xl, 제목/소제목 위계, 표는 헤어라인). 텍스트는 React 노드(dangerouslySetInnerHTML 금지)
+- **개인정보처리방침**(/privacy): 소상공인 쇼핑몰 표준 구성, 임과일 실제 데이터 흐름에 맞춤:
+  - 수집 항목: 주문자 이름·연락처·주소·우편번호·주문/결제 내역, 배송메모, (선물주문) 받는 분 이름·연락처·주소, (리뷰) 사진, (선택) 마케팅 수신동의 여부. 결제정보는 토스페이먼츠가 처리(카드번호 등은 당사 미보관)
+  - 수집·이용 목적: 주문 처리·배송·고객상담·후기 관리·(동의 시) 혜택/이벤트 안내
+  - 보유·이용기간: 전자상거래법 근거 — 계약·청약철회 기록 5년, 대금결제·재화공급 기록 5년, 소비자 불만·분쟁처리 기록 3년, 표시·광고 기록 6개월. 목적 달성 시 지체 없이 파기
+  - 제3자 제공: 배송을 위해 택배사(로젠택배 등)에 받는 분 성명·연락처·주소 제공
+  - 처리위탁(수탁사·업무): 토스페이먼츠(결제 처리), 택배사(배송), Supabase(데이터 보관, 서울 리전), 알리고(주문 알림 문자, 이용 시), Anthropic(AI 상담 응대, 미국 — 이용 시). **국외 이전 항목(Anthropic·해당 시 호스팅)은 국외 처리 사실을 명시**
+  - 정보주체 권리(열람·정정·삭제·처리정지 요청 방법: 보호책임자 연락처), 파기 절차·방법, 안전성 확보조치(접근권한 관리·암호화·접근통제), 만 14세 미만 미수집
+  - 개인정보 보호책임자: 임용균 / 010-2618-5151, 방침 변경 시 공지, 시행일
+- **이용약관**(/terms): 전자상거래 표준약관 수준 — 목적·정의, 회원 없이 비회원 주문임을 명시, 주문·결제, 청약철회·반품·교환(신선 농산물 특성상 단순변심 반품 제한·불량 시 교환/환불은 상세페이지 안내 준수), 배송, 면책, 분쟁해결·준거법
+- 두 페이지 하단에 상호·사업자번호·통신판매업·대표·연락처·주소 표기
+- Footer(`components/site/Footer.tsx`)에 "개인정보처리방침"(/privacy) · "이용약관"(/terms) 링크 추가. 주문/선물 폼의 동의 문구에서도 이 페이지로 링크
+
+## ② 동의 체크박스 (checkout + data 소유)
+- 데이터: Order 에 `marketingConsent: boolean`(기본 false) 추가. 선물주문은 보내는 분(주문자) 동의로 저장. createOrder/createGiftOrder input 에 marketingConsent 추가. schema.sql `orders` 에 `marketing_consent boolean not null default false` 멱등 추가(기존 설치 이 컬럼만 실행 가능). memory/supabase 매핑
+- API: POST /api/orders, POST /api/orders/gift 가 `marketingConsent`(boolean, 기본 false) 받아 저장. **금액·기존 검증 로직 불변**
+- UI(OrderForm, GiftOrderForm): 토스 결제위젯 약관과 **별개로**, 결제하기 직전에 상점 동의 블록:
+  - [필수] "주문 내용을 확인했으며, 개인정보 수집·이용 및 [이용약관](/terms)·[개인정보처리방침](/privacy)에 동의합니다." — 미체크 시 결제 진행 차단(필드 옆 한국어 안내). 저장은 안 함(동의 안 하면 결제 자체 불가)
+  - [선택] "광고성 정보(문자) 수신에 동의합니다. 명절·행사 소식을 보내드립니다." → marketingConsent 로 전송
+  - 링크는 새 탭 target=_blank. 체크박스 44px 터치 타깃, BRAND v2
+- (선택) 관리자 주문 상세에 "마케팅 수신동의: 동의/미동의" 표기(있으면 좋음, 없어도 됨)
+
+## ③ SEO 기술 (seo 소유)
+- `app/sitemap.ts`(Next MetadataRoute.Sitemap): 홈, 각 활성 상품 `/products/[id]`(listProducts), /order/gift, /order/lookup, /privacy, /terms. lastModified·priority 적정. `app/robots.ts`: allow /, **disallow /admin, /api, /order/success, /order/fail, /order/complete**; sitemap URL 지정. 둘 다 metadataBase(NEXT_PUBLIC_SITE_URL) 기준 절대 URL
+- 메타데이터: 루트 layout 유지 + 상품 상세 `generateMetadata`(상품명 title, subtitle description, openGraph images=대표 imageUrl 있으면 그것 없으면 로고). 홈 description 검색 최적화 카피
+- 구조화 데이터(JSON-LD, `<script type="application/ld+json">` — 정적 객체를 JSON.stringify, XSS 없게 서버에서 생성):
+  - 홈/layout: Organization(임과일, 상호 풍천대봉감농원, 주소, 전화, sameAs 생략) + WebSite
+  - 상품 상세: Product(name, image, description, brand 임과일, offers: 옵션 최저가 price·KRW·availability(재고 있으면 InStock)·priceValidUntil 생략, url) + 리뷰 있으면 aggregateRating(평균·개수). 옵션 여러 개면 offers 를 최저가 기준 또는 AggregateOffer(lowPrice/highPrice)
+- 이미지·가격·별점이 검색결과에 뜨도록. 잘못된 정보 금지(재고·가격은 실제 값)
+
+## 제약·주의
+- 법적 문서는 **표준 양식 기반**이되 위 확정 사실만 사용, 없는 사실(수상·인증 과장 등) 금지. 페이지 자체엔 "템플릿" 표기 하지 말 것(정식 문서로 읽히게). 과장·허위 금지
+- 결제 플로우 회귀 금지: 필수 동의 체크 후 정상 결제, 미체크 시 차단. 토스 약관(renderAgreement)은 그대로 유지하고 상점 동의는 별도
+- `lib/toss.ts`·`lib/order-token.ts`·`lib/auth.ts`·결제 성공/실패 페이지 수정 금지
+
+## 파일 소유권 (v2.7 라운드)
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `supabase/schema.sql` |
+| content | `app/(site)/privacy/**`(신규), `app/(site)/terms/**`(신규), `components/site/Footer.tsx`(링크 추가) |
+| checkout | `components/order/OrderForm.tsx`, `components/order/gift/*`, `app/api/orders/route.ts`, `app/api/orders/gift/route.ts` |
+| seo | `app/sitemap.ts`(신규), `app/robots.ts`(신규), `app/layout.tsx`(메타/JSON-LD), `app/(site)/page.tsx`(홈 메타/JSON-LD), `app/(site)/products/[id]/page.tsx`(generateMetadata + Product JSON-LD), `components/seo/*`(신규, JSON-LD 헬퍼) |
+
+겹침 주의: `app/(site)/products/[id]/page.tsx` 는 seo 가 메타/JSON-LD만 추가(기존 렌더·구매패널 훼손 금지). `components/site/Footer.tsx` 는 content 가 링크만 추가. 그 외 읽기 전용. 결제·리뷰·챗봇·선물·auth·toss 로직 변경 금지.

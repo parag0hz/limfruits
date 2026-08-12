@@ -15,6 +15,7 @@ interface CreateOrderBody {
   address1?: unknown;
   address2?: unknown;
   memo?: unknown;
+  marketingConsent?: unknown;
 }
 
 function asTrimmedString(v: unknown): string {
@@ -45,6 +46,8 @@ export async function POST(req: Request) {
   const address2 = asTrimmedString(body.address2);
   const memo = asTrimmedString(body.memo);
   const quantity = typeof body.quantity === 'number' ? body.quantity : NaN;
+  // v2.7 — 광고성 정보 수신 동의 (선택). 명시적 true 만 동의로 취급, 기본 false.
+  const marketingConsent = body.marketingConsent === true;
 
   if (!optionId) {
     return badRequest('상품 옵션을 선택해 주세요.');
@@ -104,6 +107,7 @@ export async function POST(req: Request) {
     address1,
     address2,
     memo,
+    marketingConsent,
   });
 
   return NextResponse.json({

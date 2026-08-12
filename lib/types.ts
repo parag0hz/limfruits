@@ -99,6 +99,7 @@ export interface Order {
   items: OrderItem[];   // GIFT는 모든 배송 건 items를 평탄화한 합 (총액·하위호환용)
   shipments: Shipment[];// v2.4 — GIFT 주문의 받는 분별 배송 건. SINGLE은 []
   totalAmount: number;
+  marketingConsent: boolean; // v2.7 — 광고성 정보(문자) 수신 동의 (기본 false). GIFT는 보내는 분 동의
   paymentKey: string | null;
   paymentMethod: string | null; // 토스 응답 method (카드/간편결제 등)
   paidAt: string | null;        // ISO

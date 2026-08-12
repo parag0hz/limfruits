@@ -45,6 +45,7 @@ create table if not exists public.orders (
   items jsonb not null,           -- OrderItem[] 스냅샷 (GIFT는 모든 배송 건 items 평탄화 합)
   shipments jsonb not null default '[]', -- v2.4 GIFT 배송 건 배열 (Shipment[]). SINGLE은 []
   total_amount integer not null check (total_amount >= 0),
+  marketing_consent boolean not null default false, -- v2.7 광고성(문자) 수신 동의. GIFT는 보내는 분 동의
   payment_key text,
   payment_method text,
   paid_at timestamptz,
@@ -59,6 +60,11 @@ alter table public.orders
   add column if not exists kind text not null default 'SINGLE';
 alter table public.orders
   add column if not exists shipments jsonb not null default '[]';
+
+-- v2.7 멱등 마이그레이션 — 기존 설치 사용자는 이 문장만 다시 실행해도 안전합니다.
+-- (신규 설치는 위 create table 이 이미 이 컬럼을 포함)
+alter table public.orders
+  add column if not exists marketing_consent boolean not null default false;
 
 create index if not exists orders_status_idx on public.orders (status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);

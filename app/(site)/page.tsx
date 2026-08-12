@@ -1,11 +1,34 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getStore } from "@/lib/db";
 import type { Review } from "@/lib/types";
 import ProductGrid, { type CatalogItem } from "@/components/home/ProductGrid";
 import { buttonClasses } from "@/components/ui/Button";
+import JsonLd from "@/components/seo/JsonLd";
+import { organizationSchema, webSiteSchema } from "@/components/seo/schema";
 
 /** 관리자가 상품/가격/품절을 바꾸면 홈에 즉시 반영되도록 항상 동적 렌더 */
 export const dynamic = "force-dynamic";
+
+const HOME_TITLE = "임과일 — 나주 산지 직송 배 · 황금배 · 도라지배즙";
+const HOME_DESCRIPTION =
+  "전남 나주 풍천대봉감농원에서 직접 재배한 나주배·황금배와 도라지배즙을 산지에서 바로 보내드립니다. 표시 가격은 배송비 포함, 주문 확인 후 신선하게 발송합니다.";
+
+export const metadata: Metadata = {
+  // 루트 template("%s | 임과일")을 우회해 홈은 완결된 제목을 그대로 쓴다.
+  title: { absolute: HOME_TITLE },
+  description: HOME_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    url: "/",
+    siteName: "임과일",
+    images: ["/logo.jpeg"],
+    locale: "ko_KR",
+    type: "website",
+  },
+};
 
 const FACTS: { title: string; body: React.ReactNode }[] = [
   {
@@ -75,6 +98,9 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col">
+      {/* 구조화 데이터 — 판매 주체(Organization)와 사이트(WebSite). 홈에 1회 노출 */}
+      <JsonLd data={[organizationSchema(), webSiteSchema()]} />
+
       {/* 히어로 — 짧고 단정하게, 장식 없이. 상단 여백은 상품이 첫 화면에 걸리도록 절제 */}
       <section className="mx-auto w-full max-w-5xl px-4 pt-10 pb-10 text-center sm:px-6 sm:pt-14 sm:pb-14">
         <h1 className="text-balance text-4xl font-bold tracking-tight text-ink sm:text-5xl md:text-6xl">

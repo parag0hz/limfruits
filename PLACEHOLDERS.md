@@ -28,11 +28,21 @@
 - [ ] 배송 정책 문구 — "주문 순서대로 발송" 수준의 일반 문구만 있음. 발송 요일·택배사 확정 시 교체 (`app/(site)/order/complete/[orderNo]/page.tsx`, 상품 상세 배송 안내, 홈 구매 안내)
 - [ ] **추석/설 발송 날짜 확정되면 관리자 팝업에서 설정·노출** — 입장 팝업(명절 발송 캘린더)은 현재 꺼짐(기본값 `enabled:false`). 날짜가 정해지면 관리자 `/admin/promo`("팝업" 탭)에서 발송 시작·마감일, 예약 마감일, 문구를 입력하고 "켜기"→"저장". 명절이 끝나면 다시 "끄기"→"저장" (라이브 DB에 `site_settings` 테이블 필요 — README "입장 팝업(site_settings) 테이블" 참고)
 
+## 법적 문서·검색 노출 (오픈 준비 — 자세한 내용은 README "오픈 준비" 절)
+
+- [x] 개인정보처리방침(`/privacy`)·이용약관(`/terms`) 페이지 — 확정 사업자 정보·실제 데이터 흐름으로 작성, 푸터·주문 동의 문구에서 링크. 시행일 2026-08-10
+- [ ] **방침·약관 최종 검토** — 표준 양식 기반으로 작성했으나, 오픈 전 내용(보유기간·위탁사·국외이전·청약철회 예외)이 실제 운영과 맞는지 확인. 필요하면 전문가(개인정보·전자상거래) 검토
+- [ ] 방침·약관 하단 사업자 정보·시행일 — 상호·대표·번호·주소·연락처가 바뀌면 `app/(site)/privacy/page.tsx`·`app/(site)/terms/page.tsx` 갱신
+- [x] 주문/선물 결제 필수 동의 체크박스 + 선택 마케팅 수신동의(`orders.marketing_consent`) — 동의 안 하면 결제 차단, 동의 값 저장
+- [ ] **마케팅 수신동의 활용** — 재구매 안내 문자는 `marketing_consent = true` 인 손님에게만 발송(미동의자 광고 문자 금지). 발송 대상 추출 방법 정하기
+- [ ] **검색엔진 등록 (사용자 직접)** — 네이버 서치어드바이저(searchadvisor.naver.com)·구글 서치 콘솔(search.google.com/search-console)에 사이트 등록 후 `sitemap.xml` 제출. 소유 확인 메타 태그가 필요하면 `app/layout.tsx`에 추가
+- [ ] 기존 Supabase DB에 `orders.marketing_consent` 컬럼 추가 — 신규 설치는 불필요. 운영 중 DB면 README "오픈 준비" 5번의 `alter table` 한 문장 실행
+
 ## 연동 키·환경변수 (설정 방법은 README.md 참고)
 
 - [x] Supabase 연동 — 라이브 DB 연결·검증 완료 (로컬 `.env.local` + Vercel)
 - [x] `ADMIN_PASSWORD` / `AUTH_SECRET` — Vercel 설정 확인됨
 - [ ] 토스페이먼츠 라이브 키 — 현재 문서 공개 테스트 키 폴백. 상점 심사 후 `NEXT_PUBLIC_TOSS_CLIENT_KEY` / `TOSS_SECRET_KEY` 설정
-- [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정 (카톡 공유 미리보기 OG 이미지용)
+- [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정. 카톡 공유 미리보기 OG 이미지뿐 아니라 **사이트맵·robots·구조화 데이터(SEO)의 절대 URL 기준값**이라 필수. 미설정 시 `localhost`로 채워져 검색 노출이 깨짐
 - [ ] 신규 주문 문자 알림 — 알리고(smartsms.aligo.in) 가입 + 발신번호 등록 후 Vercel에 `CRON_SECRET`·`ALIGO_API_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER`·`NOTIFY_PHONE` 설정, `supabase/cron.sql` 실행 (README "신규 주문 문자 알림" 절 참고. 키 넣기 전까지는 드라이런)
 - [ ] AI 상담 챗봇 — console.anthropic.com에서 `ANTHROPIC_API_KEY` 발급 후 Vercel/`.env.local`에 설정 (README "AI 상담 챗봇" 절 참고. 키가 없으면 챗봇 버튼이 아예 표시되지 않으며, 선택 env `CHAT_MODEL`·`CHAT_EFFORT`로 모델·응답 속도 조절 가능)

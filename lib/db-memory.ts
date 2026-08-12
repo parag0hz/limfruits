@@ -520,6 +520,7 @@ function seedOrders(): Order[] {
       },
     ],
     totalAmount: 38000,
+    marketingConsent: false,
     shipments: [],
     paymentKey: null,
     paymentMethod: '카드',
@@ -551,6 +552,7 @@ function seedOrders(): Order[] {
       },
     ],
     totalAmount: 58000,
+    marketingConsent: false,
     shipments: [],
     paymentKey: null,
     paymentMethod: '간편결제',
@@ -751,6 +753,7 @@ class MemoryStore implements Store {
     address1: string;
     address2: string;
     memo: string;
+    marketingConsent?: boolean;
   }): Promise<Order> {
     const data = getData();
     let orderNo = generateOrderNo();
@@ -771,6 +774,7 @@ class MemoryStore implements Store {
       items: clone(input.items),
       shipments: [],
       totalAmount: input.totalAmount,
+      marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
       paymentMethod: null,
       paidAt: null,
@@ -858,6 +862,7 @@ class MemoryStore implements Store {
       items: OrderItem[];
     }>;
     totalAmount: number;
+    marketingConsent?: boolean;
   }): Promise<Order> {
     const data = getData();
     let orderNo = generateOrderNo();
@@ -898,6 +903,7 @@ class MemoryStore implements Store {
       items: shipments.flatMap((s) => clone(s.items)),
       shipments,
       totalAmount: input.totalAmount,
+      marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
       paymentMethod: null,
       paidAt: null,

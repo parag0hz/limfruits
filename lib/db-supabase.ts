@@ -31,7 +31,8 @@ import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
  *                   name, description, price, sold_out, sort_order
  *  orders: id, order_no, status, kind, customer_name, phone, postcode, address1,
  *          address2, memo, items(jsonb), shipments(jsonb), total_amount,
- *          payment_key, payment_method, paid_at, courier, tracking_no, created_at
+ *          marketing_consent, payment_key, payment_method, paid_at, courier,
+ *          tracking_no, created_at
  *  reviews: id, product_id, order_no(unique), author_name, phone, rating,
  *           body, photos(jsonb), status, created_at
  *  site_settings: key(pk), value(jsonb) — v2.6 입장 팝업은 key='promo' 한 행(Promo)
@@ -72,6 +73,7 @@ interface OrderRow {
   items: OrderItem[];
   shipments: Shipment[] | unknown; // jsonb — 구 스키마/대시보드 편집 방어 (읽기 시 정화)
   total_amount: number;
+  marketing_consent: boolean | null; // v2.7 — 구 스키마 컬럼 부재 방어 (읽기 시 false 폴백)
   payment_key: string | null;
   payment_method: string | null;
   paid_at: string | null;
@@ -212,6 +214,7 @@ function toOrder(row: OrderRow): Order {
     items: row.items,
     shipments: normalizeShipments(row.shipments),
     totalAmount: row.total_amount,
+    marketingConsent: row.marketing_consent === true,
     paymentKey: row.payment_key,
     paymentMethod: row.payment_method,
     paidAt: toIso(row.paid_at),
@@ -446,6 +449,7 @@ class SupabaseStore implements Store {
     address1: string;
     address2: string;
     memo: string;
+    marketingConsent?: boolean;
   }): Promise<Order> {
     // 주문번호 유니크 충돌 시 재시도
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -465,6 +469,7 @@ class SupabaseStore implements Store {
           items: input.items,
           shipments: [],
           total_amount: input.totalAmount,
+          marketing_consent: input.marketingConsent ?? false,
         })
         .select('*')
         .single();
@@ -562,6 +567,7 @@ class SupabaseStore implements Store {
       items: OrderItem[];
     }>;
     totalAmount: number;
+    marketingConsent?: boolean;
   }): Promise<Order> {
     // 배송 건 id 는 이 주문의 shipments 안에서만 유일하면 됨
     const shipments: Shipment[] = [];
@@ -603,6 +609,7 @@ class SupabaseStore implements Store {
           items,
           shipments,
           total_amount: input.totalAmount,
+          marketing_consent: input.marketingConsent ?? false,
         })
         .select('*')
         .single();

@@ -40,7 +40,19 @@ export default function Footer() {
           </div>
         </dl>
 
-        <div className="mt-8 flex items-center justify-between gap-4 border-t border-hairline pt-4 text-xs text-muted">
+        <nav className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <Link
+            href="/privacy"
+            className="font-medium text-ink hover:text-brand"
+          >
+            개인정보처리방침
+          </Link>
+          <Link href="/terms" className="text-muted hover:text-ink">
+            이용약관
+          </Link>
+        </nav>
+
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-hairline pt-4 text-xs text-muted">
           <p>© {new Date().getFullYear()} 임과일 limfruits</p>
           {/* 판매자가 폰으로 /admin 진입하는 링크 — 시각 크기는 유지하고 터치 타깃만 44px+로 확대 */}
           <Link
