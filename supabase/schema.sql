@@ -370,3 +370,17 @@ create index if not exists reviews_created_at_idx
 
 -- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
 alter table public.reviews enable row level security;
+
+-- ─────────────────────────────────────────────────────────
+-- v2.6 입장 팝업 (명절 발송 캘린더) — 사이트 설정 저장소.
+-- 기존 설치 사용자는 이 절만 다시 실행해도 안전합니다 (모든 문장 멱등).
+-- 팝업 설정은 key='promo' 한 행(value jsonb = Promo). 기본값은 코드(DEFAULT_PROMO)에서
+-- 병합하므로 시드 INSERT 는 두지 않습니다.
+
+create table if not exists public.site_settings (
+  key text primary key,
+  value jsonb not null default '{}'
+);
+
+-- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
+alter table public.site_settings enable row level security;

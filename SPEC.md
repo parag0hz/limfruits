@@ -466,3 +466,66 @@ updateShipment(orderNo: string, shipmentId: string, patch: { courier?: string|nu
 | widget | `components/chat/ChatWidget.tsx` |
 
 그 외 읽기 전용.
+
+---
+
+# v2.6 부록 — 입장 팝업 (추석/명절 발송 캘린더 + "오늘 하루 보지 않기")
+
+한국 쇼핑몰 스타일 입장 팝업. 추석/설 선물세트 예약·발송 기간을 캘린더로 안내. **날짜·문구·on/off는 관리자에서 설정**(부모님이 시즌마다 켜고 끔), 코드 수정 불필요. 날짜 미확정이므로 **기본 enabled:false**(라이브에 잘못된 날짜 노출 방지), 관리자가 켜면 노출.
+
+## 데이터 모델 — `lib/types.ts` (data 소유)
+
+```ts
+export interface Promo {
+  enabled: boolean;                 // 노출 on/off (기본 false)
+  title: string;                    // "추석 선물세트 예약 안내"
+  body: string;                     // 안내 문구(여러 줄, 빈 줄=문단)
+  shipStart: string | null;         // 'YYYY-MM-DD' 발송 시작일
+  shipEnd: string | null;           // 'YYYY-MM-DD' 발송 마감일
+  reserveDeadline: string | null;   // 'YYYY-MM-DD' 예약 마감일(선택)
+  ctaLabel: string;                 // "선물 주문하기"
+  ctaHref: string;                  // "/order/gift" (내부 경로 '/' 시작만)
+}
+```
+
+## 저장소 — `lib/db.ts` (data 소유)
+
+```ts
+getPromo(): Promise<Promo>;                       // 없으면 기본값 반환
+updatePromo(patch: Partial<Promo>): Promise<void>;
+```
+
+- Supabase: `site_settings (key text primary key, value jsonb not null default '{}')` 테이블(멱등 create). promo 는 key='promo' 한 행. RLS enable + 정책 없음. **기존 설치 사용자는 이 테이블 생성 SQL만 실행하면 됨**
+- 메모리: promo 필드. 기본값(enabled:false, title/body/CTA 예시 채움, 날짜는 예시로 채우되 enabled:false). 싱글턴 키 올림 불필요(신규 필드는 기본값 병합)
+- 기본값 상수(lib/db.ts 또는 types): `{ enabled:false, title:'추석 선물세트 예약 안내', body:'주문해 주신 순서대로 산지에서 순차 발송합니다.\n신선하게 받으실 수 있도록 정성껏 준비하겠습니다.', shipStart:null, shipEnd:null, reserveDeadline:null, ctaLabel:'선물 주문하기', ctaHref:'/order/gift' }`
+
+## API (admin 소유)
+
+- `PATCH /api/admin/promo` — requireAdmin. body 검증: enabled boolean, title/ctaLabel ≤80자, body ≤1000자, 날짜는 빈 문자열/null 또는 `^\d{4}-\d{2}-\d{2}$` 형식만(유효 날짜), ctaHref 는 '/' 시작 내부 경로만(javascript: 등 거부), shipEnd ≥ shipStart(둘 다 있으면). updatePromo 호출
+- 공개 GET API 없음 — 팝업 데이터는 `(site)/layout.tsx`(server)가 getPromo()로 읽어 prop 전달
+
+## 팝업 — `components/promo/*` (storefront 소유)
+
+- `app/(site)/layout.tsx`(server, async 로 변경): `const promo = await getStore().getPromo();` → `promo.enabled` 이면 `<PromoPopup promo={promo} />` 렌더(비활성이면 아예 렌더 안 함, admin 영향 없음)
+- `components/promo/PromoPopup.tsx` (client):
+  - 마운트 시 노출 판단: localStorage `limfruits_promo_hidden_until`(YYYY-MM-DD)가 **오늘 이상**이면 표시 안 함. 아니면 표시. (SSR/hydration 안전: 초기 open=false, useEffect에서 판단해 open)
+  - 모달(dialog, 배경 오버레이, 중앙 카드, 모바일은 폭 대응). 내용: 제목 → **발송 캘린더**(shipStart~shipEnd 강조) → body 문단 → 예약 마감일 안내(reserveDeadline 있으면 "예약 마감 M월 D일") → CTA 버튼(next/link, ctaHref) → 하단 바: "오늘 하루 보지 않기"(클릭 시 localStorage에 오늘 날짜 저장 후 닫기) + "닫기"(세션만 닫기)
+  - BRAND v2 톤. 오버레이 클릭·Esc 로 닫기(세션), 포커스 트랩·aria-modal, 스크롤 락
+- `components/promo/PromoCalendar.tsx`:
+  - shipStart~shipEnd 가 걸친 달을 그리드로 렌더(1~2개월, 2개월 초과 span 은 2개월까지만 + "이후 순차 발송" 표기). 요일 헤더 일~토, 해당 월 날짜 셀. **발송 기간 날짜는 bg-brand text-white 강조**, 예약 마감일은 링/점으로 구분 표시. 날짜 없으면(shipStart null) 캘린더 생략하고 body만
+  - 순수 계산(외부 라이브러리 금지). 로컬 타임존 이슈 피하려 'YYYY-MM-DD' 문자열 파싱은 UTC 기준 분해(Date 파싱 대신 split)
+
+## 관리자 — `app/admin/(dashboard)/promo/*` + AdminNav (admin 소유)
+
+- AdminNav 에 "팝업"(또는 "이벤트") 링크 추가(/admin/promo)
+- `/admin/promo` (server + client 폼): getPromo() 초기값 → 노출 토글(크게), 제목, 안내 문구(textarea), 발송 시작·마감일·예약 마감일(date input), CTA 라벨·링크. 저장(PATCH) + 성공 피드백. 장년층 기준 큰 글씨·버튼. 간단한 미리보기(현재 값으로 팝업 프리뷰) 있으면 좋음(선택)
+
+## 파일 소유권 (v2.6 라운드)
+
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `supabase/schema.sql` |
+| storefront | `components/promo/*`(신규), `app/(site)/layout.tsx`(팝업 마운트만) |
+| admin | `app/admin/(dashboard)/promo/**`(신규), `app/api/admin/promo/**`(신규), `app/admin/(dashboard)/AdminNav.tsx`(링크 추가만) |
+
+그 외 읽기 전용. 결제·주문·리뷰·챗봇·선물주문 로직 변경 금지. `lib/auth.ts`·`lib/toss.ts`·`lib/order-token.ts` 수정 금지.

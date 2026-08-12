@@ -6,11 +6,13 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Promo,
   Review,
   ReviewStatus,
   Shipment,
 } from './types';
 import {
+  DEFAULT_PROMO,
   generateOrderNo,
   generateShortId,
   ReviewExistsError,
@@ -23,6 +25,7 @@ interface MemoryData {
   options: ProductOption[];
   orders: Order[];
   reviews: Review[]; // v2.2 — 시드 없음
+  promo: Promo; // v2.6 입장 팝업 설정 (단일 레코드). 기본 DEFAULT_PROMO(enabled:false)
 }
 
 /**
@@ -578,7 +581,13 @@ function getData(): MemoryData {
       options: seedOptions(),
       orders: seedOrders(),
       reviews: [],
+      promo: { ...DEFAULT_PROMO },
     };
+  }
+  // v2.6: promo 는 신규 필드 — 싱글턴 키를 올리지 않으므로, 이전 세션(dev HMR)에서
+  // 만들어진 데이터에 promo 가 없으면 기본값으로 병합한다.
+  if (!g.__limfruitsMemoryDbV2_4.promo) {
+    g.__limfruitsMemoryDbV2_4.promo = { ...DEFAULT_PROMO };
   }
   return g.__limfruitsMemoryDbV2_4;
 }
@@ -987,6 +996,26 @@ class MemoryStore implements Store {
   async deleteReview(id: string): Promise<void> {
     const data = getData();
     data.reviews = data.reviews.filter((r) => r.id !== id);
+  }
+
+  // ── 입장 팝업 (v2.6) ──────────────────────────────────
+
+  async getPromo(): Promise<Promo> {
+    return clone(getData().promo);
+  }
+
+  async updatePromo(patch: Partial<Promo>): Promise<void> {
+    const data = getData();
+    const promo = data.promo;
+    if (patch.enabled !== undefined) promo.enabled = patch.enabled;
+    if (patch.title !== undefined) promo.title = patch.title;
+    if (patch.body !== undefined) promo.body = patch.body;
+    if (patch.shipStart !== undefined) promo.shipStart = patch.shipStart;
+    if (patch.shipEnd !== undefined) promo.shipEnd = patch.shipEnd;
+    if (patch.reserveDeadline !== undefined)
+      promo.reserveDeadline = patch.reserveDeadline;
+    if (patch.ctaLabel !== undefined) promo.ctaLabel = patch.ctaLabel;
+    if (patch.ctaHref !== undefined) promo.ctaHref = patch.ctaHref;
   }
 }
 

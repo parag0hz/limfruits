@@ -37,6 +37,8 @@ components/
                         gift/ (선물·대량 주문 폼, 엑셀 대량 업로드) 등
   admin/                선물 주문 배송 건별 운송장 편집·전체 발송 처리 UI
   review/               리뷰 작성 폼, 상품 상세 "구매 후기" 섹션, 별점 표시
+  chat/                 AI 상담 챗봇 위젯 (ANTHROPIC_API_KEY 있을 때만 노출)
+  promo/                입장 팝업 (명절 발송 캘린더) + "오늘 하루 보지 않기"
   ui/                   Button, Card, Input, Badge 등 공용 UI
 lib/
   types.ts              Product / ProductOption / Order / Shipment / Review 타입
@@ -48,7 +50,7 @@ lib/
   auth.ts               관리자 JWT 세션
   format.ts             금액/전화번호/날짜 포맷
 proxy.ts                /admin 접근 가드 (Next 16 proxy 파일 컨벤션)
-supabase/schema.sql     Supabase 테이블 4개(products/product_options/orders/reviews) + 시드
+supabase/schema.sql     Supabase 테이블 5개(products/product_options/orders/reviews/site_settings) + 시드
 ```
 
 ## 로컬 실행 — 데모 모드
@@ -102,6 +104,20 @@ alter table public.orders
 ```
 
 - 전체 `supabase/schema.sql`을 다시 실행해도 같은 결과가 됩니다 (모든 문장이 멱등, 기존 데이터는 바뀌지 않음).
+
+**입장 팝업(site_settings) 테이블 — 이미 Supabase를 쓰고 있던 경우**
+
+- v2.6부터 입장 팝업(명절 발송 안내)이 추가되어 사이트 설정을 저장할 `site_settings` 테이블이 필요합니다. **기존에 schema.sql을 이미 실행했던 프로젝트라면**, 아래 세 문장만 SQL Editor에서 실행하면 됩니다 (멱등이라 여러 번 실행해도 안전):
+
+```sql
+create table if not exists public.site_settings (
+  key text primary key,
+  value jsonb not null default '{}'
+);
+alter table public.site_settings enable row level security;
+```
+
+- 테이블이 아직 없어도 사이트는 정상 동작합니다 — 팝업은 꺼진 상태(기본값)로 취급되어 손님 화면에 나타나지 않습니다. 위 SQL을 실행한 뒤에야 관리자 "팝업" 화면에서 켜고 날짜를 저장할 수 있습니다. 전체 `supabase/schema.sql`을 다시 실행해도 같은 결과가 됩니다.
 
 ## 토스페이먼츠 실 연동 (실제 결제 받기)
 
@@ -247,6 +263,13 @@ ANTHROPIC_API_KEY=sk-ant-...   # 서버 전용 비밀 키 (절대 공개 금지)
 - 위쪽 **"리뷰"** 탭에서 전체 후기를 볼 수 있습니다. 여기서는 어떤 손님이 썼는지 실명과 주문번호가 그대로 보입니다.
 - 부적절한 후기는 **"숨기기"** 를 누르면 손님 화면에서 바로 사라집니다 (후기 자체는 남아 있어 "보이게 하기"로 되돌릴 수 있습니다).
 - 완전히 지우려면 **"삭제"** 를 누릅니다. 사진도 함께 지워지며, 삭제하면 되돌릴 수 없습니다.
+
+**10. 입장 팝업 (명절 발송 안내)**
+- 손님이 사이트에 처음 들어올 때 뜨는 안내 창입니다. 추석·설 선물세트의 **발송 기간을 달력으로** 보여 주고, 아래 버튼으로 선물 주문 화면으로 바로 보낼 수 있습니다. 위쪽 **"팝업"** 탭에서 설정합니다.
+- **평소에는 꺼져 있습니다.** 발송 날짜가 정해지지 않았는데 잘못된 날짜가 손님에게 보이지 않도록, 기본값은 "꺼짐"입니다. 명절이 다가와 날짜를 정한 뒤에 켜세요.
+- 설정 순서: ① **팝업 제목**(예: 추석 선물세트 예약 안내)과 **안내 문구**를 적고 ② **발송 시작일·마감일**(과 필요하면 예약 마감일)을 달력에서 고르고 ③ **버튼 문구**와 **버튼을 누르면 갈 곳**을 정한 다음 ④ 맨 위 **"켜기"** 로 바꾸고 ⑤ 맨 아래 **"저장"** 을 누릅니다. **저장을 눌러야** 손님 화면에 반영됩니다(켜기/끄기도 저장을 눌러야 적용됩니다).
+- 화면 가운데 **미리보기**로 손님에게 보일 모습을 미리 확인할 수 있습니다. 날짜를 모두 비워 두면 달력 없이 안내 문구만 보입니다.
+- 손님은 팝업 아래 **"오늘 하루 보지 않기"** 를 누르면 그날 하루 동안 다시 뜨지 않습니다. 명절이 끝나면 다시 **"팝업"** 탭에서 **"끄기" → "저장"** 으로 내려 주세요.
 
 ## 오픈 전 교체할 정보
 

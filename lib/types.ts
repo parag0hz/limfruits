@@ -73,6 +73,18 @@ export interface Shipment {
   trackingNo: string | null;
 }
 
+/** v2.6 입장 팝업 (명절 발송 캘린더) — SPEC v2.6 부록 참고 */
+export interface Promo {
+  enabled: boolean; // 노출 on/off (기본 false)
+  title: string; // "추석 선물세트 예약 안내"
+  body: string; // 안내 문구(여러 줄, 빈 줄=문단)
+  shipStart: string | null; // 'YYYY-MM-DD' 발송 시작일
+  shipEnd: string | null; // 'YYYY-MM-DD' 발송 마감일
+  reserveDeadline: string | null; // 'YYYY-MM-DD' 예약 마감일(선택)
+  ctaLabel: string; // "선물 주문하기"
+  ctaHref: string; // "/order/gift" (내부 경로 '/' 시작만)
+}
+
 export interface Order {
   id: string;
   orderNo: string;      // "LF-YYYYMMDD-XXXXXXXX" (대문자 영숫자 8자리 랜덤)

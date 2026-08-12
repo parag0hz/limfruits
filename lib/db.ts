@@ -5,6 +5,7 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Promo,
   Review,
   ReviewStatus,
 } from './types';
@@ -111,7 +112,26 @@ export interface Store {
   }): Promise<Review[]>; // 최신순
   setReviewStatus(id: string, status: ReviewStatus): Promise<void>;
   deleteReview(id: string): Promise<void>;
+  // 입장 팝업 (명절 발송 캘린더) — v2.6. 단일 설정 레코드(site_settings key='promo')
+  getPromo(): Promise<Promo>; // 없으면 DEFAULT_PROMO 반환
+  updatePromo(patch: Partial<Promo>): Promise<void>;
 }
+
+/**
+ * 입장 팝업 기본값 — SPEC v2.6 부록 그대로.
+ * 날짜 미확정이므로 enabled:false (라이브에 잘못된 날짜 노출 방지).
+ * 관리자가 켜고 날짜를 채우면 노출된다. 저장소에 값이 없을 때/일부 필드 누락 시 병합 기준.
+ */
+export const DEFAULT_PROMO: Promo = {
+  enabled: false,
+  title: '추석 선물세트 예약 안내',
+  body: '주문해 주신 순서대로 산지에서 순차 발송합니다.\n신선하게 받으실 수 있도록 정성껏 준비하겠습니다.',
+  shipStart: null,
+  shipEnd: null,
+  reserveDeadline: null,
+  ctaLabel: '선물 주문하기',
+  ctaHref: '/order/gift',
+};
 
 /**
  * 주문당 리뷰 1개(unique) 위반 — API가 409로 해석할 수 있게 구분 가능한 에러로 던진다.

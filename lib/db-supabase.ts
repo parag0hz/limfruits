@@ -7,11 +7,13 @@ import type {
   OrderStatus,
   Product,
   ProductOption,
+  Promo,
   Review,
   ReviewStatus,
   Shipment,
 } from './types';
 import {
+  DEFAULT_PROMO,
   generateOrderNo,
   generateShortId,
   ReviewExistsError,
@@ -32,6 +34,7 @@ import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
  *          payment_key, payment_method, paid_at, courier, tracking_no, created_at
  *  reviews: id, product_id, order_no(unique), author_name, phone, rating,
  *           body, photos(jsonb), status, created_at
+ *  site_settings: key(pk), value(jsonb) — v2.6 입장 팝업은 key='promo' 한 행(Promo)
  */
 
 interface ProductRow {
@@ -161,6 +164,36 @@ function normalizeShipments(value: unknown): Shipment[] {
       courier: typeof s.courier === 'string' ? s.courier : null,
       trackingNo: typeof s.trackingNo === 'string' ? s.trackingNo : null,
     }));
+}
+
+/**
+ * site_settings(key='promo').value jsonb → Promo. 값이 없거나(신규 설치) 일부
+ * 필드가 빠졌으면 DEFAULT_PROMO 로 채운다. 대시보드에서 직접 편집된 값도 방어.
+ */
+function mergePromo(value: unknown): Promo {
+  const v =
+    value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : {};
+  const str = (x: unknown, fallback: string): string =>
+    typeof x === 'string' ? x : fallback;
+  const dateOrNull = (x: unknown, fallback: string | null): string | null => {
+    if (x === null) return null;
+    return typeof x === 'string' ? x : fallback;
+  };
+  return {
+    enabled: typeof v.enabled === 'boolean' ? v.enabled : DEFAULT_PROMO.enabled,
+    title: str(v.title, DEFAULT_PROMO.title),
+    body: str(v.body, DEFAULT_PROMO.body),
+    shipStart: dateOrNull(v.shipStart, DEFAULT_PROMO.shipStart),
+    shipEnd: dateOrNull(v.shipEnd, DEFAULT_PROMO.shipEnd),
+    reserveDeadline: dateOrNull(
+      v.reserveDeadline,
+      DEFAULT_PROMO.reserveDeadline
+    ),
+    ctaLabel: str(v.ctaLabel, DEFAULT_PROMO.ctaLabel),
+    ctaHref: str(v.ctaHref, DEFAULT_PROMO.ctaHref),
+  };
 }
 
 function toOrder(row: OrderRow): Order {
@@ -690,6 +723,48 @@ class SupabaseStore implements Store {
   async deleteReview(id: string): Promise<void> {
     const { error } = await getClient().from('reviews').delete().eq('id', id);
     if (error) throw new Error(`리뷰 삭제 실패: ${error.message}`);
+  }
+
+  // ── 입장 팝업 (v2.6) — site_settings key='promo' 단일 행 ───
+
+  async getPromo(): Promise<Promo> {
+    const { data, error } = await getClient()
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'promo')
+      .maybeSingle();
+    if (error) {
+      // site_settings 테이블이 아직 없거나(신규 설치·미마이그레이션) 조회가 실패해도
+      // getPromo 는 손님용 (site) 레이아웃 전체가 읽는다 → 여기서 throw 하면 홈·주문·
+      // 주문조회 등 모든 storefront 페이지가 500 난다. 기본값(enabled:false → 팝업
+      // 미노출)으로 강등해 사이트를 살리고, 관리자가 schema.sql 의 site_settings 절을
+      // 실행하면 정상 동작한다. (v2.2 리뷰 조회 실패 강등과 동일한 방침)
+      console.warn(
+        `[limfruits] 팝업 설정 조회 실패 — 기본값으로 대체합니다: ${error.message}`
+      );
+      return { ...DEFAULT_PROMO };
+    }
+    return mergePromo(data ? (data as { value: unknown }).value : null);
+  }
+
+  async updatePromo(patch: Partial<Promo>): Promise<void> {
+    // 현재 값(없으면 기본값 병합)에 patch 를 얹어 전체 jsonb 를 upsert
+    const current = await this.getPromo();
+    const next: Promo = { ...current };
+    if (patch.enabled !== undefined) next.enabled = patch.enabled;
+    if (patch.title !== undefined) next.title = patch.title;
+    if (patch.body !== undefined) next.body = patch.body;
+    if (patch.shipStart !== undefined) next.shipStart = patch.shipStart;
+    if (patch.shipEnd !== undefined) next.shipEnd = patch.shipEnd;
+    if (patch.reserveDeadline !== undefined)
+      next.reserveDeadline = patch.reserveDeadline;
+    if (patch.ctaLabel !== undefined) next.ctaLabel = patch.ctaLabel;
+    if (patch.ctaHref !== undefined) next.ctaHref = patch.ctaHref;
+
+    const { error } = await getClient()
+      .from('site_settings')
+      .upsert({ key: 'promo', value: next }, { onConflict: 'key' });
+    if (error) throw new Error(`팝업 설정 저장 실패: ${error.message}`);
   }
 }
 
