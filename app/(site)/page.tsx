@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getStore } from "@/lib/db";
 import type { Review } from "@/lib/types";
+import { getUserSession, kakaoConfigured } from "@/lib/user-auth";
 import ProductGrid, { type CatalogItem } from "@/components/home/ProductGrid";
+import SignupCouponBanner from "@/components/promo/SignupCouponBanner";
 import { buttonClasses } from "@/components/ui/Button";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, webSiteSchema } from "@/components/seo/schema";
@@ -96,10 +98,24 @@ export default async function HomePage() {
     };
   });
 
+  // v2.9 — 가입 쿠폰 배너: 카카오 로그인이 켜져 있고 비회원일 때만 노출.
+  // 세션 조회 실패는 배너를 숨기는 쪽으로 강등(홈 렌더에 영향 없음).
+  let showSignupBanner = false;
+  if (kakaoConfigured()) {
+    try {
+      showSignupBanner = !(await getUserSession());
+    } catch {
+      showSignupBanner = false;
+    }
+  }
+
   return (
     <div className="flex flex-col">
       {/* 구조화 데이터 — 판매 주체(Organization)와 사이트(WebSite). 홈에 1회 노출 */}
       <JsonLd data={[organizationSchema(), webSiteSchema()]} />
+
+      {/* 가입 쿠폰 안내 배너 (비회원) */}
+      {showSignupBanner && <SignupCouponBanner />}
 
       {/* 히어로 — 짧고 단정하게, 장식 없이. 상단 여백은 상품이 첫 화면에 걸리도록 절제 */}
       <section className="mx-auto w-full max-w-5xl px-4 pt-10 pb-10 text-center sm:px-6 sm:pt-14 sm:pb-14">

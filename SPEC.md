@@ -636,3 +636,59 @@ export interface User { id: string; kakaoId: string; nickname: string; createdAt
 | storefront | `app/(site)/my/**`(신규), `app/(site)/login/**`(신규), `components/site/Header.tsx`, `components/auth/*`(신규) |
 | checkout | `app/api/orders/route.ts`, `app/api/orders/gift/route.ts`, `components/order/OrderForm.tsx`, `components/order/gift/*` |
 그 외 읽기 전용. 결제·리뷰·챗봇·선물주문·팝업 로직 변경 금지.
+
+---
+
+# v2.9 부록 — 쿠폰·포인트 (회원제 Phase 3.0)
+
+첫 구매 쿠폰(가입 시 발급) + 포인트 적립·사용. **회원(카카오 로그인) 전용**, 비회원 주문은 그대로.
+쿠폰·포인트는 **단일(SINGLE) 주문**에만 적용(선물/대량 주문은 v1 제외).
+
+## 확정 규칙 (기본값)
+- **첫 구매 쿠폰**: 가입 시 1회 발급. 3,000원 할인 · 30,000원 이상 주문 시 · 발급 후 90일.
+- **적립**: 구매 결제액의 1%(원 단위 내림) — 결제완료(markPaid) 시 지급. 포토리뷰(사진 1장 이상) 1,000P.
+- **사용**: 결제 시 쿠폰·포인트 차감. 포인트로 결제금액이 `MIN_PAYABLE_AMOUNT(1,000원)` 밑으로 내려갈 수 없음.
+- **1년 소멸**: 적립분에 `expires_at`(now+365일) 기록. 자동 소멸 배치는 **Phase 3.1**(초기엔 잔액이 미미).
+
+## 보안 모델 (기존 결제모델 유지)
+- 할인은 **서버가 `lib/coupon-points.ts:resolveBenefits()` 로만 계산** → `order.totalAmount`(최종 결제금액)에 반영.
+  클라이언트가 보낸 `couponId`/`pointsToUse` 는 **요청일 뿐** 실제 할인은 서버가 재검증·재계산.
+- `/order/success` 는 기존대로 `order.totalAmount == 리다이렉트 amount` 검증 후 그 금액으로 토스 승인. **불변**.
+- 쿠폰 소유자 확인: `coupon.userId === session.userId`. 비회원(userId=null)은 쿠폰·포인트 불가.
+
+## 예약·정산 생명주기
+- **주문 생성(createOrder)**: 쿠폰 예약(`ISSUED→USED`, 조건부 전환) + 포인트 차감(낙관적 잠금 + `SPEND` 원장).
+  실패 시 롤백(쿠폰 되돌림·주문 삭제) → `BenefitReservationError`(API 409).
+- **결제완료(markPaid)**: `PENDING→PAID` 조건부 전환(멱등) 후에만 적립 지급(`EARN_PURCHASE`, expires_at=+1년).
+- **취소(cancelOrder)**: 완전 멱등. 쿠폰 반환 + 포인트 환불(`REFUND`) + **원장 실적 기준** 적립 회수
+  (`REVOKE` = 이 주문의 EARN_PURCHASE+EARN_REVIEW 합계, 잔액 음수 허용 네팅). 관리자 취소(PATCH status=CANCELED)가 이 경로를 탄다.
+- **원자성**: 포인트 잔액±원장은 Postgres 함수 `adjust_points`(멱등)·`spend_points`(잔액확인+차감)로 한 트랜잭션 처리.
+  `point_transactions(order_no, reason)` 부분 unique 인덱스로 사유별 1회 멱등. `REVOKE`(취소회수)와 `EXPIRE`(3.1 만료소멸) 분리.
+  markPaid 적립 실패는 결제 완료를 막지 않는다(부가 혜택 — 로깅 후 진행).
+- **방치 반환(releaseStalePendingBenefits)**: 30분 경과 PENDING 주문의 쿠폰·포인트를 새 주문 생성 전 반환(재시도 가능).
+
+## 데이터 (data 소유) — `supabase/schema.sql` v2.9 절
+- `users.points`(잔액), `coupons`(user_id·discount·min·status·used_order_no·expires_at, unique(user_id,name)),
+  `point_transactions`(delta·reason·order_no·expires_at), `orders`에 coupon_id·coupon_discount·points_used·points_earned.
+- 메모리 스토어 키 `V2_8→V2_9`. 기존 설치는 v2.9 절만 다시 실행(전부 멱등).
+
+## 화면
+- **체크아웃**(`components/order/OrderForm.tsx`): 로그인 회원에 쿠폰 체크박스 + 포인트 입력(최대 사용 한도·전액 버튼),
+  합계에 할인 내역·적립 예정 표시. 비회원엔 로그인 안내. `app/(site)/order/page.tsx`가 쿠폰·잔액을 서버조회해 전달.
+- **마이페이지**(`app/(site)/my/page.tsx`): 포인트 잔액·쿠폰함·포인트 내역.
+- **랜딩 배너**(`components/promo/SignupCouponBanner.tsx`): 비회원에게 가입 쿠폰 안내(홈 상단).
+- **관리자 주문상세**: 쿠폰·포인트 차감/적립 내역 표시(별도 탭 없음 — 엘더 모바일 4탭 유지, 쿠폰 대시보드는 3.1).
+- **가입 발급**: 카카오 콜백 신규 유저 생성 시 `issueSignupCoupon`(발급 실패는 로그인 막지 않음).
+
+## 파일 소유권 (v2.9)
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `lib/coupon-points.ts`(신규), `supabase/schema.sql` |
+| checkout | `app/api/orders/route.ts`, `components/order/OrderForm.tsx`, `app/(site)/order/page.tsx` |
+| rewards | `app/api/reviews/route.ts`(적립 훅), `app/api/auth/kakao/callback/route.ts`(발급 훅), `app/api/admin/orders/[orderNo]/route.ts`(취소→cancelOrder) |
+| storefront | `app/(site)/my/page.tsx`, `app/(site)/page.tsx`(배너), `components/promo/SignupCouponBanner.tsx`(신규), `app/admin/(dashboard)/orders/[orderNo]/page.tsx` |
+그 외 읽기 전용. **결제 금액·토스 승인 로직·성공/실패 페이지·lib/toss.ts·lib/auth.ts 변경 금지.**
+
+## 제약·주의
+- 선물/대량 주문은 쿠폰·포인트 미적용(v1). 포인트 자동소멸 배치 미구현(3.1). 만료일자는 지금부터 기록.
+- 키 없는 환경(카카오 미설정)에서 전 경로 정상 — 쿠폰·포인트 UI·배너는 미로그인/미설정 시 미노출.

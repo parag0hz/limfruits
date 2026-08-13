@@ -1,10 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  Coupon,
+  CouponStatus,
   DetailBlock,
   Order,
   OrderItem,
   OrderKind,
   OrderStatus,
+  PointReason,
+  PointTransaction,
   Product,
   ProductOption,
   Promo,
@@ -14,12 +18,20 @@ import type {
   User,
 } from './types';
 import {
+  BenefitReservationError,
   DEFAULT_PROMO,
   generateOrderNo,
   generateShortId,
   ReviewExistsError,
   type Store,
 } from './db';
+import {
+  couponExpiryFrom,
+  isStalePending,
+  pointExpiryFrom,
+  REVIEW_POINT,
+  SIGNUP_COUPON,
+} from './coupon-points';
 import { normalizePhone } from './format';
 import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
 
@@ -77,6 +89,10 @@ interface OrderRow {
   total_amount: number;
   marketing_consent: boolean | null; // v2.7 — 구 스키마 컬럼 부재 방어 (읽기 시 false 폴백)
   user_id: string | null; // v2.8 — 로그인 주문이면 User.id. 구 스키마/비회원은 null
+  coupon_id: string | null; // v2.9 — 구 스키마 컬럼 부재 방어
+  coupon_discount: number | null; // v2.9 — (읽기 시 0 폴백)
+  points_used: number | null; // v2.9 — (읽기 시 0 폴백)
+  points_earned: number | null; // v2.9 — (읽기 시 0 폴백)
   payment_key: string | null;
   payment_method: string | null;
   paid_at: string | null;
@@ -102,6 +118,7 @@ interface UserRow {
   id: string;
   kakao_id: string;
   nickname: string;
+  points: number | null; // v2.9 — 구 스키마 컬럼 부재 방어 (읽기 시 0 폴백)
   created_at: string;
 }
 
@@ -110,7 +127,58 @@ function toUser(row: UserRow): User {
     id: row.id,
     kakaoId: row.kakao_id,
     nickname: row.nickname,
+    points: typeof row.points === 'number' ? row.points : 0,
     createdAt: toIso(row.created_at) ?? row.created_at,
+  };
+}
+
+interface CouponRow {
+  id: string;
+  user_id: string;
+  name: string;
+  discount_amount: number;
+  min_order_amount: number;
+  status: CouponStatus;
+  used_order_no: string | null;
+  issued_at: string;
+  used_at: string | null;
+  expires_at: string | null;
+}
+
+function toCoupon(row: CouponRow): Coupon {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    discountAmount: row.discount_amount,
+    minOrderAmount: row.min_order_amount,
+    status: row.status === 'USED' ? 'USED' : 'ISSUED',
+    usedOrderNo: row.used_order_no,
+    issuedAt: toIso(row.issued_at) ?? row.issued_at,
+    usedAt: toIso(row.used_at),
+    expiresAt: toIso(row.expires_at),
+  };
+}
+
+interface PointTxRow {
+  id: string;
+  user_id: string;
+  delta: number;
+  reason: PointReason;
+  order_no: string | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+function toPointTx(row: PointTxRow): PointTransaction {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    delta: row.delta,
+    reason: row.reason,
+    orderNo: row.order_no,
+    createdAt: toIso(row.created_at) ?? row.created_at,
+    expiresAt: toIso(row.expires_at),
   };
 }
 
@@ -234,6 +302,10 @@ function toOrder(row: OrderRow): Order {
     shipments: normalizeShipments(row.shipments),
     userId: row.user_id ?? null,
     totalAmount: row.total_amount,
+    couponId: row.coupon_id ?? null,
+    couponDiscount: typeof row.coupon_discount === 'number' ? row.coupon_discount : 0,
+    pointsUsed: typeof row.points_used === 'number' ? row.points_used : 0,
+    pointsEarned: typeof row.points_earned === 'number' ? row.points_earned : 0,
     marketingConsent: row.marketing_consent === true,
     paymentKey: row.payment_key,
     paymentMethod: row.payment_method,
@@ -471,8 +543,17 @@ class SupabaseStore implements Store {
     memo: string;
     marketingConsent?: boolean;
     userId?: string | null;
+    couponId?: string | null;
+    couponDiscount?: number;
+    pointsUsed?: number;
+    pointsEarned?: number;
   }): Promise<Order> {
-    // 주문번호 유니크 충돌 시 재시도
+    const userId = input.userId ?? null;
+    const couponId = input.couponId ?? null;
+    const pointsUsed = input.pointsUsed ?? 0;
+
+    // 1) 주문 삽입 (주문번호 유니크 충돌 시 재시도)
+    let order: Order | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const orderNo = generateOrderNo();
       const { data, error } = await getClient()
@@ -489,18 +570,136 @@ class SupabaseStore implements Store {
           memo: input.memo,
           items: input.items,
           shipments: [],
-          user_id: input.userId ?? null,
+          user_id: userId,
           total_amount: input.totalAmount,
+          coupon_id: couponId,
+          coupon_discount: input.couponDiscount ?? 0,
+          points_used: pointsUsed,
+          points_earned: input.pointsEarned ?? 0,
           marketing_consent: input.marketingConsent ?? false,
         })
         .select('*')
         .single();
-      if (!error) return toOrder(data as OrderRow);
+      if (!error) {
+        order = toOrder(data as OrderRow);
+        break;
+      }
       if (error.code !== '23505') {
         throw new Error(`주문 생성 실패: ${error.message}`);
       }
     }
-    throw new Error('주문번호 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    if (!order) {
+      throw new Error('주문번호 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+
+    // 2) 쿠폰·포인트 예약(결제 전 차감). 실패 시 방금 만든 주문을 삭제하고 throw.
+    if (couponId || pointsUsed > 0) {
+      try {
+        await this.reserveBenefits(order.orderNo, userId, couponId, pointsUsed);
+      } catch (e) {
+        await getClient().from('orders').delete().eq('order_no', order.orderNo);
+        throw e;
+      }
+    }
+    return order;
+  }
+
+  /**
+   * 쿠폰·포인트 예약(차감) — createOrder 내부 전용.
+   * 쿠폰: status='ISSUED'인 것만 조건부로 USED 전환(경쟁 상태 방어).
+   * 포인트: 원자적 spend_points RPC(잔액확인+차감+원장을 한 트랜잭션, 부족 시 null).
+   * 어느 단계든 실패하면 이미 잡은 쿠폰을 되돌리고 BenefitReservationError.
+   */
+  private async reserveBenefits(
+    orderNo: string,
+    userId: string | null,
+    couponId: string | null,
+    pointsUsed: number
+  ): Promise<void> {
+    const now = new Date().toISOString();
+
+    if (couponId) {
+      if (!userId) throw new BenefitReservationError();
+      const { data, error } = await getClient()
+        .from('coupons')
+        .update({ status: 'USED', used_order_no: orderNo, used_at: now })
+        .eq('id', couponId)
+        .eq('user_id', userId)
+        .eq('status', 'ISSUED')
+        .select('id');
+      if (error || !data || data.length === 0) {
+        throw new BenefitReservationError();
+      }
+    }
+
+    if (pointsUsed > 0) {
+      if (!userId) {
+        await this.releaseCouponReservation(couponId, orderNo);
+        throw new BenefitReservationError();
+      }
+      // 원자적 차감(잔액 확인 + 차감 + 원장을 한 트랜잭션으로). null = 잔액 부족.
+      const { data: newBalance, error: spendErr } = await getClient().rpc(
+        'spend_points',
+        { p_user_id: userId, p_amount: pointsUsed, p_order_no: orderNo }
+      );
+      if (spendErr || newBalance === null || newBalance === undefined) {
+        await this.releaseCouponReservation(couponId, orderNo);
+        throw new BenefitReservationError();
+      }
+    }
+  }
+
+  /** 예약했던 쿠폰을 ISSUED로 되돌린다(이 주문이 잡은 것만) */
+  private async releaseCouponReservation(
+    couponId: string | null,
+    orderNo: string
+  ): Promise<void> {
+    if (!couponId) return;
+    await getClient()
+      .from('coupons')
+      .update({ status: 'ISSUED', used_order_no: null, used_at: null })
+      .eq('id', couponId)
+      .eq('used_order_no', orderNo)
+      .eq('status', 'USED');
+  }
+
+  /**
+   * 포인트 잔액 증감 + 원장 1행을 **원자적 RPC(adjust_points)**로 처리(적립·환불·회수 공용).
+   * (order_no, reason) 이 이미 있으면 DB에서 멱등 skip → 이중 지급/이중 환불 방지.
+   * 잔액은 음수 허용(정확한 회수·네팅). 잔액과 원장 합의 불일치가 원천적으로 없다.
+   */
+  private async addPoints(
+    userId: string,
+    delta: number,
+    reason: PointReason,
+    orderNo: string | null,
+    expiresAt: string | null
+  ): Promise<void> {
+    const { error } = await getClient().rpc('adjust_points', {
+      p_user_id: userId,
+      p_delta: delta,
+      p_reason: reason,
+      p_order_no: orderNo,
+      p_expires_at: expiresAt,
+    });
+    if (error) throw new Error(`포인트 반영 실패: ${error.message}`);
+  }
+
+  /**
+   * 이 주문으로 **실제 지급된** 적립(EARN_PURCHASE + EARN_REVIEW) 합계 — 취소 회수 계산용.
+   * 계획값(order.pointsEarned)이 아니라 원장 실적을 합산하므로, markPaid 부분실패로
+   * 적립이 안 된 주문은 회수액도 0이 되어 잔액이 과회수(음수)로 새지 않는다.
+   */
+  private async earnedForOrder(orderNo: string): Promise<number> {
+    const { data } = await getClient()
+      .from('point_transactions')
+      .select('delta')
+      .eq('order_no', orderNo)
+      .in('reason', ['EARN_PURCHASE', 'EARN_REVIEW'] satisfies PointReason[]);
+    return (data ?? []).reduce(
+      (sum, r) => sum + ((r as { delta: number }).delta ?? 0),
+      0
+    );
   }
 
   async getOrderByNo(orderNo: string): Promise<Order | null> {
@@ -539,7 +738,9 @@ class SupabaseStore implements Store {
     orderNo: string,
     p: { paymentKey: string; method: string }
   ): Promise<void> {
-    const { error } = await getClient()
+    // 멱등: PENDING → PAID 조건부 전환. 전환된 행이 있을 때만 적립을 지급한다
+    // (새로고침·중복 호출로 적립이 두 번 지급되는 것 방지).
+    const { data, error } = await getClient()
       .from('orders')
       .update({
         status: 'PAID' satisfies OrderStatus,
@@ -547,8 +748,36 @@ class SupabaseStore implements Store {
         payment_method: p.method,
         paid_at: new Date().toISOString(),
       })
-      .eq('order_no', orderNo);
+      .eq('order_no', orderNo)
+      .eq('status', 'PENDING' satisfies OrderStatus)
+      .select('*');
     if (error) throw new Error(`결제 반영 실패: ${error.message}`);
+    if (!data || data.length === 0) {
+      // 이미 PAID 등으로 전환됨(멱등 no-op). 단 주문 자체가 없으면 알림.
+      const existing = await this.getOrderByNo(orderNo);
+      if (!existing) throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
+      return;
+    }
+    const order = toOrder(data[0] as OrderRow);
+    // v2.9 적립 지급 — 결제는 이미 확정(PAID)됐다. 적립은 부가 혜택이므로 실패해도
+    // 결제 완료를 막지 않는다(고객이 결제됐는데 실패 화면 보는 것 방지). 로깅만 하고 진행.
+    if (order.userId && order.pointsEarned > 0) {
+      try {
+        await this.addPoints(
+          order.userId,
+          order.pointsEarned,
+          'EARN_PURCHASE',
+          orderNo,
+          pointExpiryFrom(Date.now())
+        );
+      } catch (earnErr) {
+        console.error(
+          '[limfruits] 결제완료 적립 실패(주문은 PAID 유지):',
+          orderNo,
+          earnErr
+        );
+      }
+    }
   }
 
   async updateOrder(
@@ -633,6 +862,10 @@ class SupabaseStore implements Store {
           shipments,
           user_id: input.userId ?? null,
           total_amount: input.totalAmount,
+          coupon_id: null,
+          coupon_discount: 0,
+          points_used: 0,
+          points_earned: 0,
           marketing_consent: input.marketingConsent ?? false,
         })
         .select('*')
@@ -848,6 +1081,136 @@ class SupabaseStore implements Store {
       .order('created_at', { ascending: false });
     if (error) throw new Error(`내 주문 목록 조회 실패: ${error.message}`);
     return (data as OrderRow[]).map(toOrder);
+  }
+
+  // ── 쿠폰·포인트 (v2.9) ────────────────────────────────
+
+  async issueSignupCoupon(userId: string): Promise<Coupon | null> {
+    const nowMs = Date.now();
+    const { data, error } = await getClient()
+      .from('coupons')
+      .insert({
+        user_id: userId,
+        name: SIGNUP_COUPON.name,
+        discount_amount: SIGNUP_COUPON.discountAmount,
+        min_order_amount: SIGNUP_COUPON.minOrderAmount,
+        status: 'ISSUED' satisfies CouponStatus,
+        expires_at: couponExpiryFrom(nowMs),
+      })
+      .select('*')
+      .single();
+    if (error) {
+      // unique(user_id, name) 위반 = 이미 발급됨 → 중복발급 안 함
+      if (error.code === '23505') return null;
+      throw new Error(`쿠폰 발급 실패: ${error.message}`);
+    }
+    return toCoupon(data as CouponRow);
+  }
+
+  async getCoupon(id: string): Promise<Coupon | null> {
+    const { data, error } = await getClient()
+      .from('coupons')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`쿠폰 조회 실패: ${error.message}`);
+    return data ? toCoupon(data as CouponRow) : null;
+  }
+
+  async listCouponsByUser(userId: string): Promise<Coupon[]> {
+    const { data, error } = await getClient()
+      .from('coupons')
+      .select('*')
+      .eq('user_id', userId)
+      .order('issued_at', { ascending: false });
+    if (error) throw new Error(`쿠폰 목록 조회 실패: ${error.message}`);
+    return (data as CouponRow[]).map(toCoupon);
+  }
+
+  async listPointTransactions(
+    userId: string,
+    limit?: number
+  ): Promise<PointTransaction[]> {
+    let query = getClient()
+      .from('point_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (limit !== undefined) query = query.limit(limit);
+    const { data, error } = await query;
+    if (error) throw new Error(`포인트 내역 조회 실패: ${error.message}`);
+    return (data as PointTxRow[]).map(toPointTx);
+  }
+
+  async grantReviewPoints(userId: string, orderNo: string): Promise<void> {
+    await this.addPoints(
+      userId,
+      REVIEW_POINT,
+      'EARN_REVIEW',
+      orderNo,
+      pointExpiryFrom(Date.now())
+    );
+  }
+
+  /**
+   * 주문 취소 + 쿠폰·포인트 반환. **완전 멱등** — 재호출·부분실패 재시도에도 안전하다.
+   * (쿠폰 복구는 조건부, 포인트 반환/회수는 (order_no, reason) 멱등 RPC이므로 정확히 1회만 적용)
+   */
+  async cancelOrder(orderNo: string): Promise<void> {
+    const initial = await this.getOrderByNo(orderNo);
+    if (!initial) throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
+
+    // CANCELED로 확정. 이후 markPaid는 status=PENDING 조건이라 더는 적립하지 못한다.
+    if (initial.status !== 'CANCELED') {
+      const { error } = await getClient()
+        .from('orders')
+        .update({ status: 'CANCELED' satisfies OrderStatus })
+        .eq('order_no', orderNo);
+      if (error) throw new Error(`주문 취소 실패: ${error.message}`);
+    }
+
+    // 재조회: 취소 확정 후의 최종값으로 반환 처리한다.
+    const order = (await this.getOrderByNo(orderNo)) ?? initial;
+
+    // 쿠폰 복구 (이 주문이 예약한 쿠폰만 — 조건부라 멱등)
+    if (order.couponId) {
+      await this.releaseCouponReservation(order.couponId, orderNo);
+    }
+    // 사용 포인트 환불 (멱등 RPC)
+    if (order.userId && order.pointsUsed > 0) {
+      await this.addPoints(order.userId, order.pointsUsed, 'REFUND', orderNo, null);
+    }
+    // 적립 회수 — 이 주문으로 **실제 지급된** 적립(구매+리뷰) 합계만큼 REVOKE.
+    // wasPaid 게이트가 아니라 원장 실적 기준이라, 미결제-발송 주문의 리뷰 적립도 회수하고
+    // markPaid 부분실패로 미지급된 구매 적립은 회수하지 않는다(과회수 방지).
+    if (order.userId) {
+      const earned = await this.earnedForOrder(orderNo);
+      if (earned > 0) {
+        await this.addPoints(order.userId, -earned, 'REVOKE', orderNo, null);
+      }
+    }
+  }
+
+  async releaseStalePendingBenefits(userId: string): Promise<void> {
+    const nowMs = Date.now();
+    const { data, error } = await getClient()
+      .from('orders')
+      .select('order_no, created_at, coupon_id, points_used, status')
+      .eq('user_id', userId)
+      .eq('status', 'PENDING' satisfies OrderStatus);
+    if (error) throw new Error(`방치 주문 조회 실패: ${error.message}`);
+    const rows = (data ?? []) as {
+      order_no: string;
+      created_at: string;
+      coupon_id: string | null;
+      points_used: number | null;
+    }[];
+    for (const r of rows) {
+      const hasBenefit = r.coupon_id !== null || (r.points_used ?? 0) > 0;
+      if (!hasBenefit) continue;
+      if (!isStalePending(toIso(r.created_at) ?? r.created_at, nowMs)) continue;
+      await this.cancelOrder(r.order_no);
+    }
   }
 }
 

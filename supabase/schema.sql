@@ -407,8 +407,125 @@ create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   kakao_id text unique not null,       -- 카카오 회원번호. 로그인 upsert 키
   nickname text not null default '',
+  points integer not null default 0,   -- v2.9 포인트 잔액(현재 사용가능 합계)
   created_at timestamptz not null default now()
 );
 
 -- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
 alter table public.users enable row level security;
+
+-- ─────────────────────────────────────────────────────────
+-- v2.9 쿠폰·포인트 — 첫 구매 쿠폰 + 포인트 적립/사용.
+-- 기존 설치 사용자는 이 절만 다시 실행해도 안전합니다 (모든 문장 멱등).
+
+-- users.points (구 스키마 마이그레이션)
+alter table if exists public.users
+  add column if not exists points integer not null default 0;
+
+-- 쿠폰 (유저에게 발급)
+create table if not exists public.coupons (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  name text not null default '첫 구매 할인',
+  discount_amount integer not null,
+  min_order_amount integer not null default 0,
+  status text not null default 'ISSUED',        -- ISSUED | USED
+  used_order_no text,
+  issued_at timestamptz not null default now(),
+  used_at timestamptz,
+  expires_at timestamptz
+);
+create index if not exists coupons_user_id_idx on public.coupons(user_id);
+-- 한 유저당 동일 이름 쿠폰 1장만 (첫 구매 쿠폰 중복발급 방지)
+create unique index if not exists coupons_user_name_unique
+  on public.coupons(user_id, name);
+
+-- 포인트 원장 (적립·사용·환불·소멸 감사 로그)
+create table if not exists public.point_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  delta integer not null,                       -- +적립 / -사용·회수·소멸
+  reason text not null,                         -- EARN_PURCHASE|EARN_REVIEW|SPEND|REFUND|REVOKE|EXPIRE
+  order_no text,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz                        -- 적립분 소멸 예정일 (사용/환불은 null)
+);
+create index if not exists point_tx_user_idx
+  on public.point_transactions(user_id, created_at desc);
+
+-- 주문에 쿠폰·포인트 적용 기록
+alter table if exists public.orders
+  add column if not exists coupon_id uuid,
+  add column if not exists coupon_discount integer not null default 0,
+  add column if not exists points_used integer not null default 0,
+  add column if not exists points_earned integer not null default 0;
+
+-- 포인트 원장 멱등 키: 한 주문당 사유별 1행 (SPEND/EARN_PURCHASE/EARN_REVIEW/REFUND/EXPIRE 각 1회).
+-- 적립·환불·회수를 (order_no, reason)로 멱등화 → 이중 지급/이중 환불/재발급 원천 차단.
+create unique index if not exists point_tx_order_reason_unique
+  on public.point_transactions (order_no, reason)
+  where order_no is not null;
+
+-- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
+alter table public.coupons enable row level security;
+alter table public.point_transactions enable row level security;
+
+-- ── 원자적 포인트 함수 (잔액 증감 + 원장 1행을 한 트랜잭션으로) ──────────
+-- users.points 와 원장 합의 불일치·경쟁상태(lost update)를 원천 제거한다.
+
+-- 적립/환불/회수 공용: (order_no, reason)이 이미 있으면 멱등 skip. 잔액은 음수 허용(정확한 회수·네팅).
+create or replace function public.adjust_points(
+  p_user_id uuid,
+  p_delta integer,
+  p_reason text,
+  p_order_no text,
+  p_expires_at timestamptz
+) returns integer
+language plpgsql
+as $$
+declare
+  v_balance integer;
+begin
+  insert into public.point_transactions (user_id, delta, reason, order_no, expires_at)
+  values (p_user_id, p_delta, p_reason, p_order_no, p_expires_at)
+  on conflict (order_no, reason) where order_no is not null do nothing;
+  if not found then
+    return null; -- 이미 같은 (주문, 사유) 기록 존재 → 멱등 skip
+  end if;
+  update public.users set points = points + p_delta
+  where id = p_user_id
+  returning points into v_balance;
+  return v_balance;
+end;
+$$;
+
+-- 사용(차감): 잔액 부족 시 원장을 남기지 않고 null 반환(실패). 이미 SPEND 있으면 멱등.
+create or replace function public.spend_points(
+  p_user_id uuid,
+  p_amount integer,
+  p_order_no text
+) returns integer
+language plpgsql
+as $$
+declare
+  v_balance integer;
+begin
+  insert into public.point_transactions (user_id, delta, reason, order_no, expires_at)
+  values (p_user_id, -p_amount, 'SPEND', p_order_no, null)
+  on conflict (order_no, reason) where order_no is not null do nothing;
+  if not found then
+    select points into v_balance from public.users where id = p_user_id;
+    return v_balance; -- 이미 이 주문의 SPEND 존재 → 멱등(현재 잔액 반환)
+  end if;
+  update public.users set points = points - p_amount
+  where id = p_user_id and points >= p_amount
+  returning points into v_balance;
+  if not found then
+    -- 잔액 부족(또는 유저 없음) → 방금 넣은 SPEND 원장 롤백 후 실패 신호
+    delete from public.point_transactions
+    where order_no = p_order_no and reason = 'SPEND';
+    return null;
+  end if;
+  return v_balance;
+end;
+$$;

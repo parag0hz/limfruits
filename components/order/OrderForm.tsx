@@ -8,9 +8,14 @@ import {
   type WidgetPaymentMethodWidget,
   type WidgetAgreementWidget,
 } from '@tosspayments/tosspayments-sdk';
-import type { ProductOption } from '@/lib/types';
+import type { Coupon, ProductOption } from '@/lib/types';
+import {
+  earnedPointsFor,
+  MIN_PAYABLE_AMOUNT,
+  resolveBenefits,
+} from '@/lib/coupon-points';
 import { formatWon, normalizePhone } from '@/lib/format';
-import Button from '@/components/ui/Button';
+import Button, { buttonClasses } from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import SectionTitle from '@/components/ui/SectionTitle';
@@ -51,6 +56,14 @@ export interface OrderFormProps {
    * 선택값이며 사용자가 자유롭게 수정 가능. 비회원(미로그인)은 undefined → 기존과 동일하게 빈칸.
    */
   initialCustomerName?: string;
+  /** v2.9 — 로그인 여부. false면 쿠폰·포인트 UI 대신 로그인 안내를 보인다 */
+  isLoggedIn?: boolean;
+  /** v2.9 — 카카오 로그인 사용 가능 여부(키 설정). 미로그인 안내 노출 조건 */
+  canLogin?: boolean;
+  /** v2.9 — 사용 가능한 쿠폰(ISSUED·미만료). 현재는 첫 구매 쿠폰 1장 */
+  coupons?: Coupon[];
+  /** v2.9 — 보유 포인트 잔액 */
+  pointsBalance?: number;
 }
 
 export default function OrderForm({
@@ -59,6 +72,10 @@ export default function OrderForm({
   preselectedId,
   initialQuantity = 1,
   initialCustomerName,
+  isLoggedIn = false,
+  canLogin = false,
+  coupons = [],
+  pointsBalance = 0,
 }: OrderFormProps) {
   const available = useMemo(
     () => options.filter((o) => !o.soldOut),
@@ -84,6 +101,10 @@ export default function OrderForm({
   const [address2, setAddress2] = useState('');
   const [memo, setMemo] = useState('');
 
+  // v2.9 쿠폰·포인트 (로그인 회원만)
+  const [useCoupon, setUseCoupon] = useState(true); // 쿠폰이 있으면 기본 적용
+  const [pointsInput, setPointsInput] = useState('');
+
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -105,7 +126,29 @@ export default function OrderForm({
 
   const selectedOption =
     options.find((o) => o.id === selectedId && !o.soldOut) ?? null;
-  const total = selectedOption ? selectedOption.price * quantity : 0;
+  const subtotal = selectedOption ? selectedOption.price * quantity : 0;
+
+  // v2.9 — 쿠폰·포인트 미리보기. 서버 resolveBenefits와 동일한 규칙으로 화면 금액을 계산한다.
+  // (실제 결제금액은 서버 응답 amount가 최종 신뢰 소스 — handlePay에서 위젯에 재반영)
+  const coupon = coupons[0] ?? null;
+  const couponEligible = !!coupon && subtotal >= coupon.minOrderAmount;
+  const parsedPoints = Math.max(0, Math.floor(Number(pointsInput) || 0));
+  const activeCoupon = isLoggedIn && useCoupon ? coupon : null;
+  const benefits = resolveBenefits({
+    subtotal,
+    coupon: activeCoupon,
+    requestedPoints: isLoggedIn ? parsedPoints : 0,
+    pointsBalance,
+    nowMs: Date.now(),
+  });
+  const couponDiscount = benefits.couponDiscount;
+  const pointsUsed = benefits.pointsUsed;
+  const total = benefits.finalAmount;
+  // 포인트로 결제금액이 최소금액 밑으로 내려가지 않는 한도 내에서 사용 가능
+  const maxUsablePoints = Math.max(
+    0,
+    Math.min(pointsBalance, subtotal - couponDiscount - MIN_PAYABLE_AMOUNT)
+  );
   const totalRef = useRef(total); // 이펙트/핸들러에서 최신 금액 참조용 (아래 이펙트에서 갱신)
 
   // 결제위젯 렌더: setAmount → renderPaymentMethods → renderAgreement
@@ -257,6 +300,12 @@ export default function OrderForm({
           address2: address2.trim(),
           memo: memo.trim(),
           marketingConsent: marketingAgreed,
+          // v2.9 — 쿠폰·포인트 "요청". 실제 할인은 서버가 재검증·재계산한다.
+          couponId:
+            isLoggedIn && useCoupon && coupon && couponEligible
+              ? coupon.id
+              : null,
+          pointsToUse: isLoggedIn ? pointsUsed : 0,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -321,6 +370,11 @@ export default function OrderForm({
     address1,
     address2,
     memo,
+    isLoggedIn,
+    useCoupon,
+    coupon,
+    couponEligible,
+    pointsUsed,
   ]);
 
   const payDisabled =
@@ -442,6 +496,98 @@ export default function OrderForm({
         </div>
       </Card>
 
+      {/* 3.5 쿠폰·포인트 (로그인 회원) */}
+      {isLoggedIn && (coupon || pointsBalance > 0) && (
+        <Card>
+          <h2 className="text-lg font-bold tracking-tight text-ink">
+            쿠폰 · 포인트
+          </h2>
+          <div className="mt-4 flex flex-col gap-4">
+            {coupon && (
+              <label className="flex min-h-[44px] cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={useCoupon && couponEligible}
+                  disabled={!couponEligible}
+                  onChange={(e) => setUseCoupon(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-brand disabled:opacity-40"
+                />
+                <span className="text-sm leading-relaxed text-ink">
+                  <span className="font-semibold">{coupon.name}</span>{' '}
+                  <span className="font-semibold text-brand">
+                    −{formatWon(coupon.discountAmount)}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {couponEligible
+                      ? coupon.expiresAt
+                        ? `${new Date(coupon.expiresAt).toLocaleDateString('ko-KR')}까지`
+                        : '사용 가능'
+                      : `${formatWon(coupon.minOrderAmount)} 이상 주문 시 사용 가능`}
+                  </span>
+                </span>
+              </label>
+            )}
+
+            {pointsBalance > 0 && (
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-ink">포인트 사용</span>
+                  <span className="text-xs text-muted tabular-nums">
+                    보유 {pointsBalance.toLocaleString('ko-KR')}P
+                  </span>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    label="포인트 사용 금액"
+                    labelHidden
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={maxUsablePoints}
+                    value={pointsInput}
+                    onChange={(e) => setPointsInput(e.target.value)}
+                    placeholder="0"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => setPointsInput(String(maxUsablePoints))}
+                    disabled={maxUsablePoints <= 0}
+                    className="shrink-0"
+                  >
+                    전액
+                  </Button>
+                </div>
+                <p className="mt-1.5 text-xs text-muted">
+                  최대 {maxUsablePoints.toLocaleString('ko-KR')}P 사용 가능
+                  {pointsUsed > 0 && (
+                    <span className="ml-1 font-medium text-brand">
+                      · {pointsUsed.toLocaleString('ko-KR')}P 사용
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* 3.5 (비회원) 로그인 안내 — 쿠폰·포인트 혜택 */}
+      {!isLoggedIn && canLogin && (
+        <Card tone="light">
+          <p className="text-sm leading-relaxed text-ink">
+            <span className="font-semibold text-brand">카카오 로그인</span> 시 첫
+            구매 <span className="font-semibold">3,000원 할인 쿠폰</span>과
+            적립 포인트를 사용하실 수 있어요.
+          </p>
+          <a
+            href="/login"
+            className={buttonClasses('outline', 'md', 'mt-3 w-full sm:w-auto')}
+          >
+            로그인하고 혜택 받기
+          </a>
+        </Card>
+      )}
+
       {/* 4. 결제 수단 + 약관 (토스 결제위젯) */}
       {available.length > 0 && (
         <Card padding="none">
@@ -547,12 +693,40 @@ export default function OrderForm({
                 ? `${productName} ${selectedOption.name} · ${quantity}개`
                 : '옵션을 선택해 주세요'}
             </p>
+            {(couponDiscount > 0 || pointsUsed > 0) && (
+              <div className="mt-2 flex flex-col gap-0.5 text-sm">
+                <div className="flex justify-between gap-8 text-muted">
+                  <span>상품금액</span>
+                  <span className="tabular-nums">{formatWon(subtotal)}</span>
+                </div>
+                {couponDiscount > 0 && (
+                  <div className="flex justify-between gap-8 text-brand">
+                    <span>쿠폰 할인</span>
+                    <span className="tabular-nums">
+                      −{formatWon(couponDiscount)}
+                    </span>
+                  </div>
+                )}
+                {pointsUsed > 0 && (
+                  <div className="flex justify-between gap-8 text-brand">
+                    <span>포인트 사용</span>
+                    <span className="tabular-nums">−{formatWon(pointsUsed)}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
               {formatWon(total)}
               <span className="ml-1 text-sm font-normal text-muted">
                 배송비 포함
               </span>
             </p>
+            {isLoggedIn && total > 0 && (
+              <p className="mt-0.5 text-xs text-muted tabular-nums">
+                결제 시 {earnedPointsFor(total).toLocaleString('ko-KR')}P 적립
+                예정
+              </p>
+            )}
           </div>
           <Button size="lg" onClick={handlePay} disabled={payDisabled}>
             {payButtonLabel}
@@ -582,6 +756,11 @@ export default function OrderForm({
                   : '옵션을 선택해 주세요'}
               </p>
               <p className="text-lg font-bold tabular-nums text-ink">
+                {(couponDiscount > 0 || pointsUsed > 0) && (
+                  <span className="mr-1.5 text-sm font-normal text-muted line-through">
+                    {formatWon(subtotal)}
+                  </span>
+                )}
                 {formatWon(total)}
               </p>
             </div>

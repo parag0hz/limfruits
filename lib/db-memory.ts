@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto';
 import type {
+  Coupon,
   DetailBlock,
   Order,
   OrderItem,
   OrderStatus,
+  PointTransaction,
   Product,
   ProductOption,
   Promo,
@@ -13,12 +15,20 @@ import type {
   User,
 } from './types';
 import {
+  BenefitReservationError,
   DEFAULT_PROMO,
   generateOrderNo,
   generateShortId,
   ReviewExistsError,
   type Store,
 } from './db';
+import {
+  couponExpiryFrom,
+  isStalePending,
+  pointExpiryFrom,
+  REVIEW_POINT,
+  SIGNUP_COUPON,
+} from './coupon-points';
 import { normalizePhone } from './format';
 
 interface MemoryData {
@@ -28,6 +38,8 @@ interface MemoryData {
   reviews: Review[]; // v2.2 — 시드 없음
   promo: Promo; // v2.6 입장 팝업 설정 (단일 레코드). 기본 DEFAULT_PROMO(enabled:false)
   users: User[]; // v2.8 카카오 로그인 유저 — 시드 없음
+  coupons: Coupon[]; // v2.9 쿠폰 — 시드 없음
+  pointTx: PointTransaction[]; // v2.9 포인트 원장 — 시드 없음
 }
 
 /**
@@ -525,6 +537,10 @@ function seedOrders(): Order[] {
     marketingConsent: false,
     shipments: [],
     userId: null,
+    couponId: null,
+    couponDiscount: 0,
+    pointsUsed: 0,
+    pointsEarned: 0,
     paymentKey: null,
     paymentMethod: '카드',
     paidAt: yesterday.toISOString(),
@@ -558,6 +574,10 @@ function seedOrders(): Order[] {
     marketingConsent: false,
     shipments: [],
     userId: null,
+    couponId: null,
+    couponDiscount: 0,
+    pointsUsed: 0,
+    pointsEarned: 0,
     paymentKey: null,
     paymentMethod: '간편결제',
     paidAt: threeDaysAgo.toISOString(),
@@ -578,22 +598,26 @@ function seedOrders(): Order[] {
  * 렌더/발송 처리에서 죽으므로 키를 올려(V2_2 → V2_4) 새로 시드한다.
  * v2.8: users 컬렉션 + Order.userId 추가 — 구 데이터엔 users 배열이 없어
  * getData().users 접근에서 죽으므로 키를 올려(V2_4 → V2_8) 새로 시드한다.
+ * v2.9: coupons/pointTx 컬렉션 + Order 쿠폰·포인트 필드, User.points 추가 —
+ * 구 데이터엔 이 컬렉션·필드가 없어 접근 시 죽으므로 키를 올려(V2_8 → V2_9) 새로 시드한다.
  */
 function getData(): MemoryData {
   const g = globalThis as typeof globalThis & {
-    __limfruitsMemoryDbV2_8?: MemoryData;
+    __limfruitsMemoryDbV2_9?: MemoryData;
   };
-  if (!g.__limfruitsMemoryDbV2_8) {
-    g.__limfruitsMemoryDbV2_8 = {
+  if (!g.__limfruitsMemoryDbV2_9) {
+    g.__limfruitsMemoryDbV2_9 = {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
       reviews: [],
       promo: { ...DEFAULT_PROMO },
       users: [], // v2.8 — 카카오 로그인 유저. 시드 없음
+      coupons: [], // v2.9 — 쿠폰. 시드 없음
+      pointTx: [], // v2.9 — 포인트 원장. 시드 없음
     };
   }
-  return g.__limfruitsMemoryDbV2_8;
+  return g.__limfruitsMemoryDbV2_9;
 }
 
 function clone<T>(value: T): T {
@@ -757,12 +781,59 @@ class MemoryStore implements Store {
     memo: string;
     marketingConsent?: boolean;
     userId?: string | null;
+    couponId?: string | null;
+    couponDiscount?: number;
+    pointsUsed?: number;
+    pointsEarned?: number;
   }): Promise<Order> {
     const data = getData();
     let orderNo = generateOrderNo();
     while (data.orders.some((o) => o.orderNo === orderNo)) {
       orderNo = generateOrderNo();
     }
+
+    const userId = input.userId ?? null;
+    const couponId = input.couponId ?? null;
+    const couponDiscount = input.couponDiscount ?? 0;
+    const pointsUsed = input.pointsUsed ?? 0;
+    const pointsEarned = input.pointsEarned ?? 0;
+    const now = new Date().toISOString();
+
+    // v2.9 예약(결제 전 차감): 쿠폰 USED 전환 → 포인트 차감. 실패 시 쿠폰 롤백 후 throw.
+    let reservedCoupon: Coupon | undefined;
+    if (couponId) {
+      const coupon = data.coupons.find((c) => c.id === couponId);
+      if (!coupon || coupon.userId !== userId || coupon.status !== 'ISSUED') {
+        throw new BenefitReservationError();
+      }
+      coupon.status = 'USED';
+      coupon.usedOrderNo = orderNo;
+      coupon.usedAt = now;
+      reservedCoupon = coupon;
+    }
+    if (pointsUsed > 0) {
+      const user = userId ? data.users.find((u) => u.id === userId) : undefined;
+      if (!user || user.points < pointsUsed) {
+        // 포인트 부족 — 방금 예약한 쿠폰 롤백
+        if (reservedCoupon) {
+          reservedCoupon.status = 'ISSUED';
+          reservedCoupon.usedOrderNo = null;
+          reservedCoupon.usedAt = null;
+        }
+        throw new BenefitReservationError();
+      }
+      user.points -= pointsUsed;
+      data.pointTx.push({
+        id: randomUUID(),
+        userId: user.id,
+        delta: -pointsUsed,
+        reason: 'SPEND',
+        orderNo,
+        createdAt: now,
+        expiresAt: null,
+      });
+    }
+
     const order: Order = {
       id: randomUUID(),
       orderNo,
@@ -776,15 +847,19 @@ class MemoryStore implements Store {
       memo: input.memo,
       items: clone(input.items),
       shipments: [],
-      userId: input.userId ?? null,
+      userId,
       totalAmount: input.totalAmount,
+      couponId,
+      couponDiscount,
+      pointsUsed,
+      pointsEarned,
       marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
       paymentMethod: null,
       paidAt: null,
       courier: null,
       trackingNo: null,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     };
     data.orders.push(order);
     return clone(order);
@@ -823,14 +898,27 @@ class MemoryStore implements Store {
     orderNo: string,
     p: { paymentKey: string; method: string }
   ): Promise<void> {
-    const order = getData().orders.find((o) => o.orderNo === orderNo);
+    const data = getData();
+    const order = data.orders.find((o) => o.orderNo === orderNo);
     if (!order) {
       throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
     }
+    // 멱등: 이미 결제 반영된(또는 취소된) 주문은 다시 처리하지 않는다(적립 중복 방지)
+    if (order.status !== 'PENDING') return;
     order.status = 'PAID';
     order.paymentKey = p.paymentKey;
     order.paymentMethod = p.method;
     order.paidAt = new Date().toISOString();
+    // v2.9 적립 지급 — 로그인 주문이고 적립분이 있으면(멱등: order_no+reason)
+    if (order.userId && order.pointsEarned > 0) {
+      this.applyPoints(
+        order.userId,
+        order.pointsEarned,
+        'EARN_PURCHASE',
+        orderNo,
+        pointExpiryFrom(Date.now())
+      );
+    }
   }
 
   async updateOrder(
@@ -909,6 +997,10 @@ class MemoryStore implements Store {
       shipments,
       userId: input.userId ?? null,
       totalAmount: input.totalAmount,
+      couponId: null,
+      couponDiscount: 0,
+      pointsUsed: 0,
+      pointsEarned: 0,
       marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
       paymentMethod: null,
@@ -1049,6 +1141,7 @@ class MemoryStore implements Store {
       id: randomUUID(),
       kakaoId: input.kakaoId,
       nickname: input.nickname,
+      points: 0,
       createdAt: new Date().toISOString(),
     };
     data.users.push(user);
@@ -1066,6 +1159,156 @@ class MemoryStore implements Store {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     return clone(orders);
+  }
+
+  // ── 쿠폰·포인트 (v2.9) ────────────────────────────────
+
+  async issueSignupCoupon(userId: string): Promise<Coupon | null> {
+    const data = getData();
+    // 한 유저당 첫 구매 쿠폰 1장만 (Supabase unique(user_id,name)와 동일 동작)
+    const existing = data.coupons.find(
+      (c) => c.userId === userId && c.name === SIGNUP_COUPON.name
+    );
+    if (existing) return null;
+    const nowMs = Date.now();
+    const coupon: Coupon = {
+      id: randomUUID(),
+      userId,
+      name: SIGNUP_COUPON.name,
+      discountAmount: SIGNUP_COUPON.discountAmount,
+      minOrderAmount: SIGNUP_COUPON.minOrderAmount,
+      status: 'ISSUED',
+      usedOrderNo: null,
+      issuedAt: new Date(nowMs).toISOString(),
+      usedAt: null,
+      expiresAt: couponExpiryFrom(nowMs),
+    };
+    data.coupons.push(coupon);
+    return clone(coupon);
+  }
+
+  async getCoupon(id: string): Promise<Coupon | null> {
+    const coupon = getData().coupons.find((c) => c.id === id);
+    return coupon ? clone(coupon) : null;
+  }
+
+  async listCouponsByUser(userId: string): Promise<Coupon[]> {
+    const coupons = getData().coupons.filter((c) => c.userId === userId);
+    coupons.sort(
+      (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime()
+    );
+    return clone(coupons);
+  }
+
+  async listPointTransactions(
+    userId: string,
+    limit?: number
+  ): Promise<PointTransaction[]> {
+    let txs = getData().pointTx.filter((t) => t.userId === userId);
+    txs.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    if (limit !== undefined) txs = txs.slice(0, limit);
+    return clone(txs);
+  }
+
+  async grantReviewPoints(userId: string, orderNo: string): Promise<void> {
+    // 멱등 — 같은 주문의 EARN_REVIEW가 이미 있으면 재지급 안 함(리뷰 삭제→재작성 방어)
+    this.applyPoints(
+      userId,
+      REVIEW_POINT,
+      'EARN_REVIEW',
+      orderNo,
+      pointExpiryFrom(Date.now())
+    );
+  }
+
+  /**
+   * 포인트 잔액 증감 + 원장 1행. (order_no, reason)이 이미 있으면 멱등 skip.
+   * 잔액 음수 허용(정확한 회수·네팅). Supabase adjust_points RPC 와 동일 규칙.
+   */
+  private applyPoints(
+    userId: string,
+    delta: number,
+    reason: PointTransaction['reason'],
+    orderNo: string | null,
+    expiresAt: string | null
+  ): void {
+    const data = getData();
+    const user = data.users.find((u) => u.id === userId);
+    if (!user) return;
+    if (
+      orderNo &&
+      data.pointTx.some((t) => t.orderNo === orderNo && t.reason === reason)
+    ) {
+      return; // 멱등 — 같은 (주문, 사유) 기록이 이미 있음
+    }
+    user.points += delta;
+    data.pointTx.push({
+      id: randomUUID(),
+      userId,
+      delta,
+      reason,
+      orderNo,
+      createdAt: new Date().toISOString(),
+      expiresAt,
+    });
+  }
+
+  /** 주문 취소 + 쿠폰·포인트 반환. 완전 멱등. Supabase 구현과 동일 규칙. */
+  async cancelOrder(orderNo: string): Promise<void> {
+    const data = getData();
+    const order = data.orders.find((o) => o.orderNo === orderNo);
+    if (!order) {
+      throw new Error(`주문을 찾을 수 없습니다: ${orderNo}`);
+    }
+    if (order.status === 'CANCELED') return; // 멱등
+
+    // 쿠폰 복구 (이 주문이 예약한 쿠폰만 — 조건부라 멱등)
+    if (order.couponId) {
+      const coupon = data.coupons.find((c) => c.id === order.couponId);
+      if (coupon && coupon.status === 'USED' && coupon.usedOrderNo === orderNo) {
+        coupon.status = 'ISSUED';
+        coupon.usedOrderNo = null;
+        coupon.usedAt = null;
+      }
+    }
+
+    // 사용 포인트 환불 (멱등)
+    if (order.userId && order.pointsUsed > 0) {
+      this.applyPoints(order.userId, order.pointsUsed, 'REFUND', orderNo, null);
+    }
+    // 적립 회수 — 이 주문으로 **실제 지급된** 적립(구매+리뷰) 합계만큼 REVOKE.
+    // 원장 실적 기준이라 미결제-발송 주문의 리뷰 적립도 회수하고, 미지급된 구매 적립은 회수 안 함.
+    if (order.userId) {
+      const earned = data.pointTx
+        .filter(
+          (t) =>
+            t.orderNo === orderNo &&
+            (t.reason === 'EARN_PURCHASE' || t.reason === 'EARN_REVIEW')
+        )
+        .reduce((sum, t) => sum + t.delta, 0);
+      if (earned > 0) {
+        this.applyPoints(order.userId, -earned, 'REVOKE', orderNo, null);
+      }
+    }
+
+    order.status = 'CANCELED';
+  }
+
+  async releaseStalePendingBenefits(userId: string): Promise<void> {
+    const data = getData();
+    const nowMs = Date.now();
+    const stale = data.orders.filter(
+      (o) =>
+        o.userId === userId &&
+        o.status === 'PENDING' &&
+        (o.couponId !== null || o.pointsUsed > 0) &&
+        isStalePending(o.createdAt, nowMs)
+    );
+    for (const o of stale) {
+      await this.cancelOrder(o.orderNo);
+    }
   }
 }
 

@@ -78,7 +78,47 @@ export interface User {
   id: string; // uuid (Supabase gen_random_uuid, 메모리는 randomUUID)
   kakaoId: string; // 카카오 회원번호(문자열). unique
   nickname: string; // 카카오 닉네임. 기본 ''
+  points: number; // v2.9 포인트 잔액(현재 사용가능 합계). 기본 0
   createdAt: string; // ISO
+}
+
+/** v2.9 쿠폰·포인트 — SPEC v2.9 부록 참고 */
+export type CouponStatus = 'ISSUED' | 'USED';
+
+export interface Coupon {
+  id: string; // uuid
+  userId: string; // 소유 유저
+  name: string; // '첫 구매 할인'
+  discountAmount: number; // 할인 금액(원)
+  minOrderAmount: number; // 최소 주문금액(원) — 이 금액 이상일 때만 사용 가능
+  status: CouponStatus; // ISSUED(사용가능) | USED(사용됨·예약됨)
+  usedOrderNo: string | null; // 사용/예약된 주문번호
+  issuedAt: string; // ISO
+  usedAt: string | null; // ISO
+  expiresAt: string | null; // ISO — 만료일(지나면 사용 불가)
+}
+
+/**
+ * 포인트 원장 사유 — 적립(구매/리뷰), 사용, 환불, 취소회수, 소멸.
+ * REVOKE = 주문 취소 시 적립 회수(정확한 원장 기준). EXPIRE = 유효기간 만료 소멸(Phase 3.1 배치).
+ * 둘을 분리해 (order_no, reason) 멱등 키 충돌을 피한다.
+ */
+export type PointReason =
+  | 'EARN_PURCHASE'
+  | 'EARN_REVIEW'
+  | 'SPEND'
+  | 'REFUND'
+  | 'REVOKE'
+  | 'EXPIRE';
+
+export interface PointTransaction {
+  id: string; // uuid
+  userId: string;
+  delta: number; // +적립 / -사용·소멸
+  reason: PointReason;
+  orderNo: string | null; // 관련 주문(있으면)
+  createdAt: string; // ISO
+  expiresAt: string | null; // 적립분 소멸 예정일(사용/환불/소멸은 null)
 }
 
 /** v2.6 입장 팝업 (명절 발송 캘린더) — SPEC v2.6 부록 참고 */
@@ -107,7 +147,11 @@ export interface Order {
   items: OrderItem[];   // GIFT는 모든 배송 건 items를 평탄화한 합 (총액·하위호환용)
   shipments: Shipment[];// v2.4 — GIFT 주문의 받는 분별 배송 건. SINGLE은 []
   userId: string | null; // v2.8 — 로그인(카카오) 주문이면 User.id, 비회원·기존 주문은 null
-  totalAmount: number;
+  totalAmount: number; // 최종 결제금액 = 상품합계 - couponDiscount - pointsUsed. 토스 승인금액과 일치
+  couponId: string | null; // v2.9 — 사용한 쿠폰 id (없으면 null)
+  couponDiscount: number; // v2.9 — 쿠폰 할인액(원). 기본 0
+  pointsUsed: number; // v2.9 — 사용한 포인트(원). 기본 0
+  pointsEarned: number; // v2.9 — 이 주문으로 적립 예정/적립된 포인트. 결제완료(markPaid) 시 지급. 기본 0
   marketingConsent: boolean; // v2.7 — 광고성 정보(문자) 수신 동의 (기본 false). GIFT는 보내는 분 동의
   paymentKey: string | null;
   paymentMethod: string | null; // 토스 응답 method (카드/간편결제 등)

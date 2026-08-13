@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStore, ReviewExistsError } from '@/lib/db';
+import { REVIEW_POINT } from '@/lib/coupon-points';
 import { uploadReviewPhoto } from '@/lib/storage';
 import { normalizePhone } from '@/lib/format';
 import type { Review } from '@/lib/types';
@@ -214,10 +215,29 @@ export async function POST(req: Request) {
     throw e;
   }
 
+  // v2.9 — 포토리뷰 적립: 로그인(회원) 주문이고 사진이 있을 때 1,000P.
+  // 리뷰는 주문당 1개(unique)라 적립도 1회. 적립 실패는 리뷰 등록을 되돌리지 않는다.
+  let pointsEarned = 0;
+  if (order.userId && photos.length > 0) {
+    try {
+      // 적립 직전 최신 주문 상태 재확인 — 사진 업로드(느림) 사이 관리자가 취소했다면
+      // 취소된 주문에 적립이 남는 경합을 막는다(리뷰 자체는 유지).
+      const fresh = await store.getOrderByNo(order.orderNo);
+      if (fresh && fresh.status !== 'CANCELED') {
+        await store.grantReviewPoints(order.userId, order.orderNo);
+        pointsEarned = REVIEW_POINT;
+      }
+    } catch (pErr) {
+      console.error('[limfruits] 리뷰 적립 실패(리뷰는 유지):', pErr);
+    }
+  }
+
   return NextResponse.json(
-    photosSkipped
-      ? { review: toPublicReview(review), photosSkipped: true }
-      : { review: toPublicReview(review) },
+    {
+      review: toPublicReview(review),
+      ...(photosSkipped ? { photosSkipped: true } : {}),
+      ...(pointsEarned > 0 ? { pointsEarned } : {}),
+    },
     { status: 201 }
   );
 }

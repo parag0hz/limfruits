@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getStore } from '@/lib/db';
-import { getUserSession } from '@/lib/user-auth';
+import type { Coupon } from '@/lib/types';
+import { getUserSession, kakaoConfigured } from '@/lib/user-auth';
 import OrderForm from '@/components/order/OrderForm';
 
 export const metadata: Metadata = {
@@ -52,9 +53,9 @@ export default async function OrderPage({
       ? Math.min(qtyRaw, MAX_QUANTITY)
       : 1;
 
-  // v2.8 — 로그인 상태면 유저 닉네임으로 주문자 성함을 프리필(선택, 수정 가능).
+  // v2.8/v2.9 — 로그인 상태면 닉네임 프리필 + 쿠폰·포인트를 넘긴다.
   // 세션·유저 조회 실패는 비회원으로 강등(주문 흐름에 영향 없음).
-  const initialCustomerName = await resolveNickname(store);
+  const ctx = await resolveUserContext(store);
 
   return (
     <OrderForm
@@ -62,21 +63,55 @@ export default async function OrderPage({
       options={options}
       preselectedId={option.id}
       initialQuantity={initialQuantity}
-      initialCustomerName={initialCustomerName}
+      initialCustomerName={ctx.nickname}
+      isLoggedIn={ctx.isLoggedIn}
+      canLogin={kakaoConfigured()}
+      coupons={ctx.coupons}
+      pointsBalance={ctx.pointsBalance}
     />
   );
 }
 
-/** 유저 세션이 있으면 닉네임을, 없으면(비회원·조회 실패) undefined 를 돌려준다. */
-async function resolveNickname(
+interface UserContext {
+  isLoggedIn: boolean;
+  nickname: string | undefined;
+  coupons: Coupon[]; // 사용 가능한 쿠폰(ISSUED·미만료)만
+  pointsBalance: number;
+}
+
+/**
+ * 로그인 유저의 주문 컨텍스트(닉네임·쿠폰·포인트)를 모은다.
+ * 카카오 미설정/비회원/조회 실패는 모두 비회원 컨텍스트로 강등한다.
+ */
+async function resolveUserContext(
   store: ReturnType<typeof getStore>
-): Promise<string | undefined> {
+): Promise<UserContext> {
+  const empty: UserContext = {
+    isLoggedIn: false,
+    nickname: undefined,
+    coupons: [],
+    pointsBalance: 0,
+  };
+  if (!kakaoConfigured()) return empty;
   try {
     const session = await getUserSession();
-    if (!session) return undefined;
+    if (!session) return empty;
     const user = await store.getUser(session.userId);
-    return user?.nickname?.trim() || undefined;
+    if (!user) return empty;
+    const all = await store.listCouponsByUser(user.id);
+    const now = Date.now();
+    const coupons = all.filter(
+      (c) =>
+        c.status === 'ISSUED' &&
+        (!c.expiresAt || new Date(c.expiresAt).getTime() > now)
+    );
+    return {
+      isLoggedIn: true,
+      nickname: user.nickname?.trim() || undefined,
+      coupons,
+      pointsBalance: Math.max(0, user.points), // 음수 잔액은 0으로 표시·사용
+    };
   } catch {
-    return undefined;
+    return empty;
   }
 }

@@ -112,6 +112,15 @@ export default async function AdminOrderDetailPage({
   const allTracked =
     order.shipments.length > 0 &&
     order.shipments.every((s) => s.courier && s.trackingNo);
+  // v2.9 — 할인 전 상품금액(쿠폰·포인트 차감 내역 표시용)
+  const itemsSubtotal = order.items.reduce(
+    (sum, i) => sum + i.unitPrice * i.quantity,
+    0
+  );
+  const isPaidLike =
+    order.status === "PAID" ||
+    order.status === "SHIPPING" ||
+    order.status === "DONE";
 
   return (
     <div className="flex flex-col gap-4">
@@ -295,11 +304,45 @@ export default async function AdminOrderDetailPage({
                 </li>
               ))}
             </ul>
-            <div className="mt-3 flex items-baseline justify-between border-t border-hairline pt-3">
-              <p className="text-lg font-bold text-ink">총 결제금액</p>
-              <p className="text-2xl font-bold text-brand-dark tabular-nums">
-                {formatWon(order.totalAmount)}
-              </p>
+            <div className="mt-3 border-t border-hairline pt-3">
+              {(order.couponDiscount > 0 || order.pointsUsed > 0) && (
+                <dl className="mb-2 flex flex-col gap-1 text-base">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted">상품금액</dt>
+                    <dd className="tabular-nums text-ink">
+                      {formatWon(itemsSubtotal)}
+                    </dd>
+                  </div>
+                  {order.couponDiscount > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">쿠폰 할인</dt>
+                      <dd className="tabular-nums text-brand-dark">
+                        −{formatWon(order.couponDiscount)}
+                      </dd>
+                    </div>
+                  )}
+                  {order.pointsUsed > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">포인트 사용</dt>
+                      <dd className="tabular-nums text-brand-dark">
+                        −{formatWon(order.pointsUsed)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+              <div className="flex items-baseline justify-between">
+                <p className="text-lg font-bold text-ink">총 결제금액</p>
+                <p className="text-2xl font-bold text-brand-dark tabular-nums">
+                  {formatWon(order.totalAmount)}
+                </p>
+              </div>
+              {order.userId && order.pointsEarned > 0 && (
+                <p className="mt-1 text-right text-sm text-muted tabular-nums">
+                  적립 {order.pointsEarned.toLocaleString("ko-KR")}P
+                  {isPaidLike ? " 지급" : " 예정"}
+                </p>
+              )}
             </div>
           </Card>
 

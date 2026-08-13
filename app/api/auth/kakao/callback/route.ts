@@ -103,6 +103,13 @@ export async function GET(request: NextRequest) {
     let user = await store.getUserByKakaoId(kakaoId);
     if (!user) {
       user = await store.createUser({ kakaoId, nickname });
+      // v2.9 — 신규 가입 시 첫 구매 쿠폰 1회 발급. 발급 실패는 로그인 자체를
+      // 막지 않는다(쿠폰은 부가 혜택 — 로그인 성공이 우선). 중복이면 null.
+      try {
+        await store.issueSignupCoupon(user.id);
+      } catch (couponErr) {
+        console.error('[limfruits] 가입 쿠폰 발급 실패(로그인은 계속):', couponErr);
+      }
     }
 
     // ④ 세션 발급 후 내부 경로로만 복귀

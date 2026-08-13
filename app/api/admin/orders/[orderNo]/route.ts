@@ -171,6 +171,19 @@ export async function PATCH(
     );
   }
 
+  // v2.9 — 취소된 주문은 다른 상태로 되돌릴 수 없다(쿠폰·포인트가 이미 반환됨 →
+  // 재활성화 시 원장/잔액 정합성이 깨지므로 상태 전이 자체를 금지한다).
+  if (
+    order.status === "CANCELED" &&
+    patch.status !== undefined &&
+    patch.status !== "CANCELED"
+  ) {
+    return NextResponse.json(
+      { error: "취소된 주문은 상태를 변경할 수 없습니다." },
+      { status: 400 }
+    );
+  }
+
   // 발송 처리 시 운송장 필수
   if (patch.status === "SHIPPING") {
     if (order.kind === "GIFT") {
@@ -230,7 +243,12 @@ export async function PATCH(
     }
   }
 
-  await store.updateOrder(orderNo, patch);
+  // v2.9 — 취소는 cancelOrder로 처리(쿠폰·포인트 반환 포함). 그 외는 기존 updateOrder.
+  if (patch.status === "CANCELED") {
+    await store.cancelOrder(orderNo);
+  } else {
+    await store.updateOrder(orderNo, patch);
+  }
   const updated = await store.getOrderByNo(orderNo);
   return NextResponse.json({ ok: true, order: updated });
 }

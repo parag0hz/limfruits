@@ -1,8 +1,10 @@
 import type {
+  Coupon,
   DetailBlock,
   Order,
   OrderItem,
   OrderStatus,
+  PointTransaction,
   Product,
   ProductOption,
   Promo,
@@ -45,10 +47,10 @@ export interface Store {
     patch: Partial<Omit<ProductOption, 'id' | 'productId'>>
   ): Promise<void>;
   deleteOption(id: string): Promise<void>;
-  // 주문 — v1 그대로
+  // 주문 — v1 그대로 + v2.9 쿠폰·포인트
   createOrder(input: {
     items: OrderItem[];
-    totalAmount: number;
+    totalAmount: number; // v2.9 — 최종 결제금액(할인 반영). 서버가 resolveBenefits로 계산해 전달
     customerName: string;
     phone: string;
     postcode: string;
@@ -57,6 +59,12 @@ export interface Store {
     memo: string;
     marketingConsent?: boolean; // v2.7 — 광고성 수신 동의 (생략 시 false)
     userId?: string | null; // v2.8 — 로그인 주문이면 User.id (생략 시 null)
+    // v2.9 — 쿠폰·포인트 예약(결제 전 차감). 아래 값이 있으면 createOrder가 쿠폰을 USED로
+    // 전환하고 포인트를 차감·기록한다. 예약 실패(경쟁 상태) 시 BenefitReservationError.
+    couponId?: string | null;
+    couponDiscount?: number; // 기본 0
+    pointsUsed?: number; // 기본 0
+    pointsEarned?: number; // 결제완료(markPaid) 시 지급할 적립 포인트. 기본 0
   }): Promise<Order>; // orderNo 생성 포함, status PENDING
   getOrderByNo(orderNo: string): Promise<Order | null>;
   findOrder(orderNo: string, phone: string): Promise<Order | null>; // phone 숫자만 비교
@@ -125,6 +133,25 @@ export interface Store {
   createUser(input: { kakaoId: string; nickname: string }): Promise<User>;
   getUser(id: string): Promise<User | null>;
   listOrdersByUser(userId: string): Promise<Order[]>; // 최신순, 본인 userId 주문만
+  // 쿠폰·포인트 — v2.9
+  /** 가입 시 첫 구매 쿠폰 1회 발급. 이미 보유 시 null (중복발급 방지) */
+  issueSignupCoupon(userId: string): Promise<Coupon | null>;
+  getCoupon(id: string): Promise<Coupon | null>;
+  listCouponsByUser(userId: string): Promise<Coupon[]>; // 최신순
+  /** 포토리뷰 작성 적립(REVIEW_POINT). 주문당 1회는 호출부(리뷰 unique)가 보장 */
+  grantReviewPoints(userId: string, orderNo: string): Promise<void>;
+  listPointTransactions(
+    userId: string,
+    limit?: number
+  ): Promise<PointTransaction[]>; // 최신순
+  /**
+   * 주문 취소 + 쿠폰·포인트 반환(멱등). 이미 CANCELED면 no-op.
+   * - 예약된 쿠폰(USED·used_order_no=이 주문)을 ISSUED로 복구
+   * - 사용 포인트 환불(REFUND), 결제완료였다면 적립 포인트 회수(EXPIRE)
+   */
+  cancelOrder(orderNo: string): Promise<void>;
+  /** 방치된(30분 경과) PENDING 주문의 쿠폰·포인트를 반환 — 새 주문 생성 전에 호출 */
+  releaseStalePendingBenefits(userId: string): Promise<void>;
 }
 
 /**
@@ -151,6 +178,17 @@ export class ReviewExistsError extends Error {
   constructor(orderNo: string) {
     super(`이미 리뷰가 등록된 주문입니다: ${orderNo}`);
     this.name = 'ReviewExistsError';
+  }
+}
+
+/**
+ * v2.9 — 쿠폰·포인트 예약(차감) 실패. 경쟁 상태(이미 사용된 쿠폰/부족한 잔액)에서
+ * createOrder 가 던진다. 주문 API 는 409로 해석해 "새로고침 후 다시" 안내.
+ */
+export class BenefitReservationError extends Error {
+  constructor(message = '쿠폰·포인트 적용에 실패했습니다. 새로고침 후 다시 시도해 주세요.') {
+    super(message);
+    this.name = 'BenefitReservationError';
   }
 }
 

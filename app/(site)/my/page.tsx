@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { kakaoConfigured, getUserSession } from "@/lib/user-auth";
 import { getStore } from "@/lib/db";
-import type { Order, OrderItem } from "@/lib/types";
+import type { Coupon, Order, OrderItem, PointTransaction } from "@/lib/types";
 import { formatWon, formatDateTime } from "@/lib/format";
 import SectionTitle from "@/components/ui/SectionTitle";
 import Card from "@/components/ui/Card";
@@ -47,15 +47,24 @@ export default async function MyPage() {
   }
 
   const store = getStore();
-  const [user, orders] = await Promise.all([
+  const [user, orders, coupons, pointTx] = await Promise.all([
     store.getUser(session.userId),
     store.listOrdersByUser(session.userId),
+    store.listCouponsByUser(session.userId),
+    store.listPointTransactions(session.userId, 12),
   ]);
 
   // 세션은 있으나 유저 레코드가 없으면(삭제 등) 로그인 안내로 강등
   if (!user) {
     return <LoggedOut configured={configured} />;
   }
+
+  const now = Date.now();
+  const usableCoupons = coupons.filter(
+    (c) =>
+      c.status === "ISSUED" &&
+      (!c.expiresAt || new Date(c.expiresAt).getTime() > now)
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-12">
@@ -65,6 +74,12 @@ export default async function MyPage() {
         </SectionTitle>
         <LogoutButton />
       </div>
+
+      <RewardsSection
+        points={Math.max(0, user.points)}
+        usableCoupons={usableCoupons}
+        pointTx={pointTx}
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-bold tracking-tight text-ink">주문 내역</h2>
@@ -94,6 +109,104 @@ export default async function MyPage() {
         )}
       </section>
     </div>
+  );
+}
+
+const POINT_REASON_LABEL: Record<PointTransaction["reason"], string> = {
+  EARN_PURCHASE: "구매 적립",
+  EARN_REVIEW: "리뷰 적립",
+  SPEND: "주문 사용",
+  REFUND: "취소 환불",
+  REVOKE: "취소 회수",
+  EXPIRE: "기간 만료",
+};
+
+/** 포인트 잔액 · 쿠폰함 · 최근 적립/사용 내역 — v2.9 */
+function RewardsSection({
+  points,
+  usableCoupons,
+  pointTx,
+}: {
+  points: number;
+  usableCoupons: Coupon[];
+  pointTx: PointTransaction[];
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-bold tracking-tight text-ink">포인트 · 쿠폰</h2>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card tone="light">
+          <p className="text-sm text-muted">보유 포인트</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
+            {points.toLocaleString("ko-KR")}
+            <span className="ml-0.5 text-base font-normal text-muted">P</span>
+          </p>
+        </Card>
+        <Card tone="light">
+          <p className="text-sm text-muted">사용 가능 쿠폰</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
+            {usableCoupons.length}
+            <span className="ml-0.5 text-base font-normal text-muted">장</span>
+          </p>
+        </Card>
+      </div>
+
+      {usableCoupons.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {usableCoupons.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-hairline px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">{c.name}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {formatWon(c.minOrderAmount)} 이상 주문 시
+                  {c.expiresAt
+                    ? ` · ${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지`
+                    : ""}
+                </p>
+              </div>
+              <p className="shrink-0 text-lg font-bold tabular-nums text-brand">
+                {formatWon(c.discountAmount)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {pointTx.length > 0 && (
+        <details className="rounded-xl border border-hairline px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink">
+            포인트 내역
+          </summary>
+          <ul className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3">
+            {pointTx.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="text-muted">
+                  {POINT_REASON_LABEL[t.reason]}
+                  <span className="ml-2 text-xs text-muted">
+                    {formatDateTime(t.createdAt)}
+                  </span>
+                </span>
+                <span
+                  className={`shrink-0 font-semibold tabular-nums ${
+                    t.delta >= 0 ? "text-brand" : "text-ink"
+                  }`}
+                >
+                  {t.delta >= 0 ? "+" : ""}
+                  {t.delta.toLocaleString("ko-KR")}P
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 
