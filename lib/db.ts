@@ -68,6 +68,8 @@ export interface Store {
   }): Promise<Order>; // orderNo 생성 포함, status PENDING
   getOrderByNo(orderNo: string): Promise<Order | null>;
   findOrder(orderNo: string, phone: string): Promise<Order | null>; // phone 숫자만 비교
+  /** 비회원 주문 찾기 — 연락처+주문자명(둘 다 일치)으로 본인 주문 목록. 최신순, 최대 20건 */
+  findOrdersByPhoneName(phone: string, name: string): Promise<Order[]>;
   listOrders(params?: {
     status?: OrderStatus;
     limit?: number;
@@ -132,6 +134,7 @@ export interface Store {
   getUserByKakaoId(kakaoId: string): Promise<User | null>;
   createUser(input: { kakaoId: string; nickname: string }): Promise<User>;
   getUser(id: string): Promise<User | null>;
+  listUsers(): Promise<User[]>; // 최신 가입순 (관리자 회원 조회)
   listOrdersByUser(userId: string): Promise<Order[]>; // 최신순, 본인 userId 주문만
   // 쿠폰·포인트 — v2.9
   /** 가입 시 첫 구매 쿠폰 1회 발급. 이미 보유 시 null (중복발급 방지) */

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import SectionTitle from '@/components/ui/SectionTitle';
 import LookupForm from '@/components/order/LookupForm';
+import FindOrderByName from '@/components/order/FindOrderByName';
 
 export const metadata: Metadata = {
   title: '주문조회',
@@ -24,6 +25,7 @@ export default async function OrderLookupPage({
         주문조회
       </SectionTitle>
       <LookupForm initialOrderNo={initialOrderNo} />
+      <FindOrderByName />
     </div>
   );
 }

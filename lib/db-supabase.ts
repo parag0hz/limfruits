@@ -719,6 +719,21 @@ class SupabaseStore implements Store {
     return order;
   }
 
+  async findOrdersByPhoneName(
+    phone: string,
+    name: string
+  ): Promise<Order[]> {
+    const { data, error } = await getClient()
+      .from('orders')
+      .select('*')
+      .eq('phone', normalizePhone(phone))
+      .eq('customer_name', name.trim())
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) throw new Error(`주문 찾기 실패: ${error.message}`);
+    return (data as OrderRow[]).map(toOrder);
+  }
+
   async listOrders(params?: {
     status?: OrderStatus;
     limit?: number;
@@ -1071,6 +1086,15 @@ class SupabaseStore implements Store {
       .maybeSingle();
     if (error) throw new Error(`유저 조회 실패: ${error.message}`);
     return data ? toUser(data as UserRow) : null;
+  }
+
+  async listUsers(): Promise<User[]> {
+    const { data, error } = await getClient()
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`회원 목록 조회 실패: ${error.message}`);
+    return (data as UserRow[]).map(toUser);
   }
 
   async listOrdersByUser(userId: string): Promise<Order[]> {

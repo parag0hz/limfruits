@@ -877,6 +877,24 @@ class MemoryStore implements Store {
     return clone(order);
   }
 
+  async findOrdersByPhoneName(
+    phone: string,
+    name: string
+  ): Promise<Order[]> {
+    const p = normalizePhone(phone);
+    const n = name.trim();
+    const orders = getData()
+      .orders.filter(
+        (o) => normalizePhone(o.phone) === p && o.customerName.trim() === n
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 20);
+    return clone(orders);
+  }
+
   async listOrders(params?: {
     status?: OrderStatus;
     limit?: number;
@@ -1151,6 +1169,14 @@ class MemoryStore implements Store {
   async getUser(id: string): Promise<User | null> {
     const user = getData().users.find((u) => u.id === id);
     return user ? clone(user) : null;
+  }
+
+  async listUsers(): Promise<User[]> {
+    const users = [...getData().users].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return clone(users);
   }
 
   async listOrdersByUser(userId: string): Promise<Order[]> {

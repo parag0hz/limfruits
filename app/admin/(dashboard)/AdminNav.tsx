@@ -5,11 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/components/ui/cn";
 
-// 항목 4개 + 로그아웃이 좁은 휴대폰(360px)에서도 한 줄에 들어가도록 짧은 라벨 사용
+// 짧은 라벨. 5개 + 로그아웃이라 좁은 화면에선 flex-wrap 으로 두 줄로 접힌다.
 const NAV_ITEMS = [
   { href: "/admin", label: "주문" },
   { href: "/admin/products", label: "상품" },
   { href: "/admin/reviews", label: "리뷰" },
+  { href: "/admin/members", label: "회원" },
   { href: "/admin/promo", label: "팝업" },
 ];
 
@@ -39,7 +40,7 @@ export default function AdminNav() {
   return (
     <nav
       aria-label="관리자 메뉴"
-      className="mb-5 flex items-center gap-2"
+      className="mb-5 flex flex-wrap items-center gap-2"
     >
       {NAV_ITEMS.map((item) => (
         <Link
@@ -47,7 +48,7 @@ export default function AdminNav() {
           href={item.href}
           aria-current={isActive(item.href) ? "page" : undefined}
           className={cn(
-            "inline-flex min-h-12 flex-1 items-center justify-center rounded-full px-3 text-lg font-bold transition-colors",
+            "inline-flex min-h-12 flex-1 basis-[18%] items-center justify-center rounded-full px-3 text-lg font-bold transition-colors",
             isActive(item.href)
               ? "bg-brand text-white"
               : "border border-hairline bg-white text-ink hover:bg-surface"
