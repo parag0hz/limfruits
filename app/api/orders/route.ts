@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/db';
 import { normalizePhone } from '@/lib/format';
+import { getUserSession } from '@/lib/user-auth';
 
 export const runtime = 'nodejs';
 
@@ -89,6 +90,17 @@ export async function POST(req: Request) {
   // 스마트스토어식 주문명: "나주배 가정용 3kg x 2"
   const orderName = `${product.name} ${option.name} x ${quantity}`;
 
+  // v2.8 — 로그인 세션이 있으면 userId 를 주문에 첨부(없으면 null).
+  // 유저 세션은 관리자 세션과 완전 분리(lib/user-auth). 세션 조회 실패는 비회원으로 강등해
+  // 결제 경로에 영향을 주지 않는다. 금액·검증 로직은 위와 동일하게 불변.
+  let userId: string | null = null;
+  try {
+    const session = await getUserSession();
+    userId = session?.userId ?? null;
+  } catch {
+    userId = null;
+  }
+
   const order = await store.createOrder({
     items: [
       {
@@ -108,6 +120,7 @@ export async function POST(req: Request) {
     address2,
     memo,
     marketingConsent,
+    userId,
   });
 
   return NextResponse.json({

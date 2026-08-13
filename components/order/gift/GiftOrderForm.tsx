@@ -36,6 +36,11 @@ const MAX_QUANTITY = 99;
 export interface GiftOrderFormProps {
   products: ProductLite[];
   options: OptionChoice[];
+  /**
+   * v2.8 — 로그인 상태면 서버가 유저 닉네임을 넘겨 보내는 분(주문자) 성함을 프리필한다.
+   * 선택값이며 사용자가 자유롭게 수정 가능. 비회원(미로그인)은 undefined → 기존과 동일하게 빈칸.
+   */
+  initialSenderName?: string;
 }
 
 let recipientCounter = 0;
@@ -63,6 +68,7 @@ interface FormErrors {
 export default function GiftOrderForm({
   products,
   options,
+  initialSenderName,
 }: GiftOrderFormProps) {
   const hasChoices = options.length > 0;
   const firstOptionId = options[0]?.id ?? '';
@@ -73,7 +79,7 @@ export default function GiftOrderForm({
   const [recipients, setRecipients] = useState<RecipientDraft[]>(() => [
     emptyDraft('r-initial', firstOptionId),
   ]);
-  const [senderName, setSenderName] = useState('');
+  const [senderName, setSenderName] = useState(initialSenderName ?? '');
   const [senderPhone, setSenderPhone] = useState('');
 
   const [errors, setErrors] = useState<FormErrors>({ recipients: {} });

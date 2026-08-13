@@ -10,6 +10,7 @@ import type {
   Review,
   ReviewStatus,
   Shipment,
+  User,
 } from './types';
 import {
   DEFAULT_PROMO,
@@ -26,6 +27,7 @@ interface MemoryData {
   orders: Order[];
   reviews: Review[]; // v2.2 — 시드 없음
   promo: Promo; // v2.6 입장 팝업 설정 (단일 레코드). 기본 DEFAULT_PROMO(enabled:false)
+  users: User[]; // v2.8 카카오 로그인 유저 — 시드 없음
 }
 
 /**
@@ -522,6 +524,7 @@ function seedOrders(): Order[] {
     totalAmount: 38000,
     marketingConsent: false,
     shipments: [],
+    userId: null,
     paymentKey: null,
     paymentMethod: '카드',
     paidAt: yesterday.toISOString(),
@@ -554,6 +557,7 @@ function seedOrders(): Order[] {
     totalAmount: 58000,
     marketingConsent: false,
     shipments: [],
+    userId: null,
     paymentKey: null,
     paymentMethod: '간편결제',
     paidAt: threeDaysAgo.toISOString(),
@@ -572,26 +576,24 @@ function seedOrders(): Order[] {
  * product.blocks.length 접근에서 죽으므로 키를 올려 새로 시드한다.
  * v2.4: Order.kind/shipments 추가 — kind/shipments 없는 구 주문 객체가 남아 있으면
  * 렌더/발송 처리에서 죽으므로 키를 올려(V2_2 → V2_4) 새로 시드한다.
+ * v2.8: users 컬렉션 + Order.userId 추가 — 구 데이터엔 users 배열이 없어
+ * getData().users 접근에서 죽으므로 키를 올려(V2_4 → V2_8) 새로 시드한다.
  */
 function getData(): MemoryData {
   const g = globalThis as typeof globalThis & {
-    __limfruitsMemoryDbV2_4?: MemoryData;
+    __limfruitsMemoryDbV2_8?: MemoryData;
   };
-  if (!g.__limfruitsMemoryDbV2_4) {
-    g.__limfruitsMemoryDbV2_4 = {
+  if (!g.__limfruitsMemoryDbV2_8) {
+    g.__limfruitsMemoryDbV2_8 = {
       products: seedProducts(),
       options: seedOptions(),
       orders: seedOrders(),
       reviews: [],
       promo: { ...DEFAULT_PROMO },
+      users: [], // v2.8 — 카카오 로그인 유저. 시드 없음
     };
   }
-  // v2.6: promo 는 신규 필드 — 싱글턴 키를 올리지 않으므로, 이전 세션(dev HMR)에서
-  // 만들어진 데이터에 promo 가 없으면 기본값으로 병합한다.
-  if (!g.__limfruitsMemoryDbV2_4.promo) {
-    g.__limfruitsMemoryDbV2_4.promo = { ...DEFAULT_PROMO };
-  }
-  return g.__limfruitsMemoryDbV2_4;
+  return g.__limfruitsMemoryDbV2_8;
 }
 
 function clone<T>(value: T): T {
@@ -754,6 +756,7 @@ class MemoryStore implements Store {
     address2: string;
     memo: string;
     marketingConsent?: boolean;
+    userId?: string | null;
   }): Promise<Order> {
     const data = getData();
     let orderNo = generateOrderNo();
@@ -773,6 +776,7 @@ class MemoryStore implements Store {
       memo: input.memo,
       items: clone(input.items),
       shipments: [],
+      userId: input.userId ?? null,
       totalAmount: input.totalAmount,
       marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
@@ -863,6 +867,7 @@ class MemoryStore implements Store {
     }>;
     totalAmount: number;
     marketingConsent?: boolean;
+    userId?: string | null;
   }): Promise<Order> {
     const data = getData();
     let orderNo = generateOrderNo();
@@ -902,6 +907,7 @@ class MemoryStore implements Store {
       // 총액 계산·하위호환용: 모든 배송 건 items 를 평탄화한 합
       items: shipments.flatMap((s) => clone(s.items)),
       shipments,
+      userId: input.userId ?? null,
       totalAmount: input.totalAmount,
       marketingConsent: input.marketingConsent ?? false,
       paymentKey: null,
@@ -1022,6 +1028,44 @@ class MemoryStore implements Store {
       promo.reserveDeadline = patch.reserveDeadline;
     if (patch.ctaLabel !== undefined) promo.ctaLabel = patch.ctaLabel;
     if (patch.ctaHref !== undefined) promo.ctaHref = patch.ctaHref;
+  }
+
+  // ── 유저 (카카오 소셜 로그인, v2.8) ───────────────────
+
+  async getUserByKakaoId(kakaoId: string): Promise<User | null> {
+    const user = getData().users.find((u) => u.kakaoId === kakaoId);
+    return user ? clone(user) : null;
+  }
+
+  async createUser(input: {
+    kakaoId: string;
+    nickname: string;
+  }): Promise<User> {
+    const data = getData();
+    // kakaoId unique — 이미 있으면(경쟁 상태) 기존 유저 반환 (Supabase upsert 동작과 동일)
+    const existing = data.users.find((u) => u.kakaoId === input.kakaoId);
+    if (existing) return clone(existing);
+    const user: User = {
+      id: randomUUID(),
+      kakaoId: input.kakaoId,
+      nickname: input.nickname,
+      createdAt: new Date().toISOString(),
+    };
+    data.users.push(user);
+    return clone(user);
+  }
+
+  async getUser(id: string): Promise<User | null> {
+    const user = getData().users.find((u) => u.id === id);
+    return user ? clone(user) : null;
+  }
+
+  async listOrdersByUser(userId: string): Promise<Order[]> {
+    const orders = getData().orders.filter((o) => o.userId === userId);
+    orders.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return clone(orders);
   }
 }
 

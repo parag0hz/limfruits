@@ -46,6 +46,11 @@ export interface OrderFormProps {
   options: ProductOption[];
   preselectedId?: string;
   initialQuantity?: number;
+  /**
+   * v2.8 — 로그인 상태면 서버(server component)가 유저 닉네임을 넘겨 주문자 성함을 프리필한다.
+   * 선택값이며 사용자가 자유롭게 수정 가능. 비회원(미로그인)은 undefined → 기존과 동일하게 빈칸.
+   */
+  initialCustomerName?: string;
 }
 
 export default function OrderForm({
@@ -53,6 +58,7 @@ export default function OrderForm({
   options,
   preselectedId,
   initialQuantity = 1,
+  initialCustomerName,
 }: OrderFormProps) {
   const available = useMemo(
     () => options.filter((o) => !o.soldOut),
@@ -71,7 +77,7 @@ export default function OrderForm({
   const [quantity, setQuantity] = useState(() =>
     Math.min(Math.max(initialQuantity, 1), MAX_QUANTITY)
   );
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(initialCustomerName ?? '');
   const [phone, setPhone] = useState('');
   const [postcode, setPostcode] = useState('');
   const [address1, setAddress1] = useState('');

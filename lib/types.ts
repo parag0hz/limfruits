@@ -73,6 +73,14 @@ export interface Shipment {
   trackingNo: string | null;
 }
 
+/** v2.8 카카오 소셜 로그인 — SPEC v2.8 부록 참고 */
+export interface User {
+  id: string; // uuid (Supabase gen_random_uuid, 메모리는 randomUUID)
+  kakaoId: string; // 카카오 회원번호(문자열). unique
+  nickname: string; // 카카오 닉네임. 기본 ''
+  createdAt: string; // ISO
+}
+
 /** v2.6 입장 팝업 (명절 발송 캘린더) — SPEC v2.6 부록 참고 */
 export interface Promo {
   enabled: boolean; // 노출 on/off (기본 false)
@@ -98,6 +106,7 @@ export interface Order {
   memo: string;
   items: OrderItem[];   // GIFT는 모든 배송 건 items를 평탄화한 합 (총액·하위호환용)
   shipments: Shipment[];// v2.4 — GIFT 주문의 받는 분별 배송 건. SINGLE은 []
+  userId: string | null; // v2.8 — 로그인(카카오) 주문이면 User.id, 비회원·기존 주문은 null
   totalAmount: number;
   marketingConsent: boolean; // v2.7 — 광고성 정보(문자) 수신 동의 (기본 false). GIFT는 보내는 분 동의
   paymentKey: string | null;

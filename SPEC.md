@@ -588,3 +588,51 @@ updatePromo(patch: Partial<Promo>): Promise<void>;
 | seo | `app/sitemap.ts`(신규), `app/robots.ts`(신규), `app/layout.tsx`(메타/JSON-LD), `app/(site)/page.tsx`(홈 메타/JSON-LD), `app/(site)/products/[id]/page.tsx`(generateMetadata + Product JSON-LD), `components/seo/*`(신규, JSON-LD 헬퍼) |
 
 겹침 주의: `app/(site)/products/[id]/page.tsx` 는 seo 가 메타/JSON-LD만 추가(기존 렌더·구매패널 훼손 금지). `components/site/Footer.tsx` 는 content 가 링크만 추가. 그 외 읽기 전용. 결제·리뷰·챗봇·선물·auth·toss 로직 변경 금지.
+
+---
+
+# v2.8 부록 — 카카오 소셜 로그인 + 마이페이지 (회원제 Phase 2)
+
+**비회원 주문은 그대로 유지.** 로그인은 편의(주문내역 마이페이지)만 — 돈(포인트/쿠폰)은 Phase 3. 카카오 키 없으면 **로그인 버튼 미노출 안전모드**(챗봇과 동일 패턴), 키 넣으면 켜짐.
+
+## 환경변수 (env-gated)
+- `KAKAO_REST_API_KEY` — 카카오 REST API 키. 없으면 로그인 비활성(버튼 미노출, /api/auth/kakao 503, /my 로그인 안내)
+- `KAKAO_CLIENT_SECRET` — (선택, 카카오 보안 설정 시)
+- redirect_uri = `${NEXT_PUBLIC_SITE_URL}/api/auth/kakao/callback` (없으면 요청 origin 유도). **카카오 개발자 앱에 이 redirect_uri 등록 필요**
+- `AUTH_SECRET` 재사용(유저 세션 서명). 없으면 개발 폴백(admin과 동일 방침)
+
+## 데이터 (data 소유)
+```ts
+export interface User { id: string; kakaoId: string; nickname: string; createdAt: string; }
+// Order += userId: string | null  (비회원·기존 주문은 null)
+```
+- Store 추가: `getUserByKakaoId(kakaoId)`, `createUser({kakaoId,nickname})`, `getUser(id)`, `listOrdersByUser(userId)`(최신순), createOrder/createGiftOrder input 에 `userId?: string | null` 추가
+- Supabase: `users(id uuid pk default gen_random_uuid(), kakao_id text unique not null, nickname text not null default '', created_at timestamptz not null default now())` RLS enable+정책없음; `orders` 에 `user_id text null` + index. **멱등**(create table if not exists / add column if not exists). 기존 설치 이 절만 실행 가능
+- memory: users 배열, order.userId. 기존 주문/시드 userId=null
+
+## 인증 (auth 소유) — `lib/user-auth.ts`(신규), `app/api/auth/**`(신규)
+- lib/user-auth.ts: `kakaoConfigured():boolean`; `getKakaoAuthUrl(state, redirectUri):string`; `createUserSession(userId):Promise<void>`(jose HS256, typ:'user', 만료 30일, 쿠키 'limfruits_user' httpOnly·secure(prod)·sameSite lax); `getUserSession():Promise<{userId}|null>`; `clearUserSession()`. **lib/auth.ts(admin) 수정 금지 — 별도 파일**. 유저/관리자 세션 완전 분리(쿠키명·claim 다름)
+- `GET /api/auth/kakao`: kakaoConfigured 아니면 503. **state(CSRF) 생성→httpOnly 쿠키 'limfruits_oauth_state'**, 카카오 authorize로 redirect. return_to(내부경로 '/' 시작만) 허용
+- `GET /api/auth/kakao/callback`: **state 쿠키 일치 검증(CSRF)**, code→token 교환(kauth.kakao.com/oauth/token), user/me(kapi.kakao.com/v2/user/me)→kakaoId·nickname, upsert user(getUserByKakaoId 없으면 createUser), createUserSession, **내부경로로만 redirect(오픈리다이렉트 방지, 기본 /my)**. 실패 시 /login?error=. 카카오 토큰은 서버에서만 사용, 클라이언트·DB 저장 금지
+- `POST /api/auth/logout`: 세션 쿠키 삭제 → '/'
+
+## 화면 (storefront 소유)
+- `components/site/Header.tsx`(server 로 세션·config 읽어 전달): kakaoConfigured && 세션없음 → "로그인"(→/api/auth/kakao); 세션있음 → "마이페이지"(→/my). 키 없으면 로그인/마이 미노출(기존 홈·주문조회 유지)
+- `app/(site)/my/page.tsx`(server): 세션 없으면 로그인 안내(카카오 버튼)·또는 로그인 유도. 있으면 닉네임 + **내 주문 목록**(listOrdersByUser) — 주문번호·날짜·상품요약·상태·금액·(선물이면 배송건 수)·운송장, 배송 상태 타임라인, 로그아웃 버튼. **본인 userId 주문만**(전화 재인증 없이 표시 — 로그인으로 인증됨). 비회원 주문(userId null)은 안 보임
+- `app/(site)/login/page.tsx`(선택): 카카오 로그인 버튼 페이지. BRAND v2
+
+## 결제 연동 (checkout 소유)
+- `app/api/orders/route.ts`, `app/api/orders/gift/route.ts`: 세션 있으면 userId 를 create 에 첨부(없으면 null). **금액·기존 검증 로직 불변**
+- OrderForm/gift: 로그인 상태면 주문자 성함을 닉네임으로 프리필(선택, 수정 가능). 과하지 않게
+
+## 보안·주의
+- OAuth state(CSRF) 필수, 세션 쿠키 httpOnly·secure(prod)·sameSite lax, 카카오 토큰 미노출, 리다이렉트 내부경로만, /my 는 본인 주문만. 유저↔관리자 세션 분리. lib/auth.ts·toss.ts·order-token.ts·결제 성공/실패 페이지 수정 금지. 결제 금액·승인 불변. 키 없는 환경에서 빌드·전 경로 정상(로그인 미노출)
+
+## 파일 소유권 (v2.8)
+| 에이전트 | 소유 |
+|---|---|
+| data | `lib/types.ts`, `lib/db.ts`, `lib/db-memory.ts`, `lib/db-supabase.ts`, `supabase/schema.sql` |
+| auth | `lib/user-auth.ts`(신규), `app/api/auth/**`(신규) |
+| storefront | `app/(site)/my/**`(신규), `app/(site)/login/**`(신규), `components/site/Header.tsx`, `components/auth/*`(신규) |
+| checkout | `app/api/orders/route.ts`, `app/api/orders/gift/route.ts`, `components/order/OrderForm.tsx`, `components/order/gift/*` |
+그 외 읽기 전용. 결제·리뷰·챗봇·선물주문·팝업 로직 변경 금지.

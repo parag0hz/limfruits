@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/db';
 import { normalizePhone } from '@/lib/format';
+import { getUserSession } from '@/lib/user-auth';
 import type { OrderItem } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -185,6 +186,16 @@ export async function POST(req: Request) {
   const orderName =
     prepared.length > 1 ? `${repName} 외 ${prepared.length - 1}건` : repName;
 
+  // v2.8 — 로그인 세션이 있으면 userId 를 주문(보내는 분 기준)에 첨부(없으면 null).
+  // 세션 조회 실패는 비회원으로 강등해 결제 경로에 영향을 주지 않는다. 금액 계산은 위에서 서버가 확정.
+  let userId: string | null = null;
+  try {
+    const session = await getUserSession();
+    userId = session?.userId ?? null;
+  } catch {
+    userId = null;
+  }
+
   const order = await store.createGiftOrder({
     senderName,
     senderPhone,
@@ -192,6 +203,7 @@ export async function POST(req: Request) {
     shipments: prepared,
     totalAmount: total,
     marketingConsent,
+    userId,
   });
 
   return NextResponse.json({

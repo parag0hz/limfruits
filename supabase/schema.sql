@@ -46,6 +46,7 @@ create table if not exists public.orders (
   shipments jsonb not null default '[]', -- v2.4 GIFT 배송 건 배열 (Shipment[]). SINGLE은 []
   total_amount integer not null check (total_amount >= 0),
   marketing_consent boolean not null default false, -- v2.7 광고성(문자) 수신 동의. GIFT는 보내는 분 동의
+  user_id text,                   -- v2.8 로그인(카카오) 주문이면 users.id. 비회원·기존 주문은 null
   payment_key text,
   payment_method text,
   paid_at timestamptz,
@@ -66,8 +67,14 @@ alter table public.orders
 alter table public.orders
   add column if not exists marketing_consent boolean not null default false;
 
+-- v2.8 멱등 마이그레이션 — 기존 설치 사용자는 이 문장만 다시 실행해도 안전합니다.
+-- (신규 설치는 위 create table 이 이미 이 컬럼을 포함)
+alter table public.orders
+  add column if not exists user_id text;
+
 create index if not exists orders_status_idx on public.orders (status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
+create index if not exists orders_user_id_idx on public.orders (user_id);
 
 -- RLS: 켜기만 하고 정책은 만들지 않음 → 서비스 롤 키로만 접근 가능
 alter table public.products enable row level security;
@@ -390,3 +397,18 @@ create table if not exists public.site_settings (
 
 -- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
 alter table public.site_settings enable row level security;
+
+-- ─────────────────────────────────────────────────────────
+-- v2.8 카카오 소셜 로그인 — 회원(유저) 테이블. 관리자 세션과 완전 분리.
+-- 기존 설치 사용자는 이 절만 다시 실행해도 안전합니다 (모든 문장 멱등).
+-- orders.user_id 컬럼·인덱스는 위의 orders 정의 및 v2.8 멱등 마이그레이션 절 참고.
+
+create table if not exists public.users (
+  id uuid primary key default gen_random_uuid(),
+  kakao_id text unique not null,       -- 카카오 회원번호. 로그인 upsert 키
+  nickname text not null default '',
+  created_at timestamptz not null default now()
+);
+
+-- RLS: 켜기만 하고 정책 없음 → 서비스 롤 키로만 접근 (반복 실행해도 안전)
+alter table public.users enable row level security;

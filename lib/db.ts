@@ -8,6 +8,7 @@ import type {
   Promo,
   Review,
   ReviewStatus,
+  User,
 } from './types';
 import { getMemoryStore } from './db-memory';
 import { getSupabaseStore } from './db-supabase';
@@ -55,6 +56,7 @@ export interface Store {
     address2: string;
     memo: string;
     marketingConsent?: boolean; // v2.7 — 광고성 수신 동의 (생략 시 false)
+    userId?: string | null; // v2.8 — 로그인 주문이면 User.id (생략 시 null)
   }): Promise<Order>; // orderNo 생성 포함, status PENDING
   getOrderByNo(orderNo: string): Promise<Order | null>;
   findOrder(orderNo: string, phone: string): Promise<Order | null>; // phone 숫자만 비교
@@ -90,6 +92,7 @@ export interface Store {
     }>;
     totalAmount: number;
     marketingConsent?: boolean; // v2.7 — 보내는 분(주문자) 광고성 수신 동의 (생략 시 false)
+    userId?: string | null; // v2.8 — 로그인 주문이면 User.id (생략 시 null)
   }): Promise<Order>; // kind:'GIFT', orderNo 생성 포함, status PENDING
   updateShipment(
     orderNo: string,
@@ -117,6 +120,11 @@ export interface Store {
   // 입장 팝업 (명절 발송 캘린더) — v2.6. 단일 설정 레코드(site_settings key='promo')
   getPromo(): Promise<Promo>; // 없으면 DEFAULT_PROMO 반환
   updatePromo(patch: Partial<Promo>): Promise<void>;
+  // 유저 (카카오 소셜 로그인) — v2.8. 관리자 세션과 완전 분리
+  getUserByKakaoId(kakaoId: string): Promise<User | null>;
+  createUser(input: { kakaoId: string; nickname: string }): Promise<User>;
+  getUser(id: string): Promise<User | null>;
+  listOrdersByUser(userId: string): Promise<Order[]>; // 최신순, 본인 userId 주문만
 }
 
 /**

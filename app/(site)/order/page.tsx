@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getStore } from '@/lib/db';
+import { getUserSession } from '@/lib/user-auth';
 import OrderForm from '@/components/order/OrderForm';
 
 export const metadata: Metadata = {
@@ -51,12 +52,31 @@ export default async function OrderPage({
       ? Math.min(qtyRaw, MAX_QUANTITY)
       : 1;
 
+  // v2.8 — 로그인 상태면 유저 닉네임으로 주문자 성함을 프리필(선택, 수정 가능).
+  // 세션·유저 조회 실패는 비회원으로 강등(주문 흐름에 영향 없음).
+  const initialCustomerName = await resolveNickname(store);
+
   return (
     <OrderForm
       productName={product.name}
       options={options}
       preselectedId={option.id}
       initialQuantity={initialQuantity}
+      initialCustomerName={initialCustomerName}
     />
   );
+}
+
+/** 유저 세션이 있으면 닉네임을, 없으면(비회원·조회 실패) undefined 를 돌려준다. */
+async function resolveNickname(
+  store: ReturnType<typeof getStore>
+): Promise<string | undefined> {
+  try {
+    const session = await getUserSession();
+    if (!session) return undefined;
+    const user = await store.getUser(session.userId);
+    return user?.nickname?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }

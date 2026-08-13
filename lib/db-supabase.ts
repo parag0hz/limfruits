@@ -11,6 +11,7 @@ import type {
   Review,
   ReviewStatus,
   Shipment,
+  User,
 } from './types';
 import {
   DEFAULT_PROMO,
@@ -31,11 +32,12 @@ import { sanitizeDetailBlocks } from '@/app/api/admin/products/detail-blocks';
  *                   name, description, price, sold_out, sort_order
  *  orders: id, order_no, status, kind, customer_name, phone, postcode, address1,
  *          address2, memo, items(jsonb), shipments(jsonb), total_amount,
- *          marketing_consent, payment_key, payment_method, paid_at, courier,
- *          tracking_no, created_at
+ *          marketing_consent, user_id, payment_key, payment_method, paid_at,
+ *          courier, tracking_no, created_at
  *  reviews: id, product_id, order_no(unique), author_name, phone, rating,
  *           body, photos(jsonb), status, created_at
  *  site_settings: key(pk), value(jsonb) — v2.6 입장 팝업은 key='promo' 한 행(Promo)
+ *  users: id(uuid pk), kakao_id(unique), nickname, created_at — v2.8 카카오 로그인
  */
 
 interface ProductRow {
@@ -74,6 +76,7 @@ interface OrderRow {
   shipments: Shipment[] | unknown; // jsonb — 구 스키마/대시보드 편집 방어 (읽기 시 정화)
   total_amount: number;
   marketing_consent: boolean | null; // v2.7 — 구 스키마 컬럼 부재 방어 (읽기 시 false 폴백)
+  user_id: string | null; // v2.8 — 로그인 주문이면 User.id. 구 스키마/비회원은 null
   payment_key: string | null;
   payment_method: string | null;
   paid_at: string | null;
@@ -93,6 +96,22 @@ interface ReviewRow {
   photos: string[] | unknown; // jsonb — 대시보드 직접 수정 가능성 있어 읽기 시 방어
   status: ReviewStatus;
   created_at: string;
+}
+
+interface UserRow {
+  id: string;
+  kakao_id: string;
+  nickname: string;
+  created_at: string;
+}
+
+function toUser(row: UserRow): User {
+  return {
+    id: row.id,
+    kakaoId: row.kakao_id,
+    nickname: row.nickname,
+    createdAt: toIso(row.created_at) ?? row.created_at,
+  };
 }
 
 function toReview(row: ReviewRow): Review {
@@ -213,6 +232,7 @@ function toOrder(row: OrderRow): Order {
     memo: row.memo,
     items: row.items,
     shipments: normalizeShipments(row.shipments),
+    userId: row.user_id ?? null,
     totalAmount: row.total_amount,
     marketingConsent: row.marketing_consent === true,
     paymentKey: row.payment_key,
@@ -450,6 +470,7 @@ class SupabaseStore implements Store {
     address2: string;
     memo: string;
     marketingConsent?: boolean;
+    userId?: string | null;
   }): Promise<Order> {
     // 주문번호 유니크 충돌 시 재시도
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -468,6 +489,7 @@ class SupabaseStore implements Store {
           memo: input.memo,
           items: input.items,
           shipments: [],
+          user_id: input.userId ?? null,
           total_amount: input.totalAmount,
           marketing_consent: input.marketingConsent ?? false,
         })
@@ -568,6 +590,7 @@ class SupabaseStore implements Store {
     }>;
     totalAmount: number;
     marketingConsent?: boolean;
+    userId?: string | null;
   }): Promise<Order> {
     // 배송 건 id 는 이 주문의 shipments 안에서만 유일하면 됨
     const shipments: Shipment[] = [];
@@ -608,6 +631,7 @@ class SupabaseStore implements Store {
           memo: input.memo,
           items,
           shipments,
+          user_id: input.userId ?? null,
           total_amount: input.totalAmount,
           marketing_consent: input.marketingConsent ?? false,
         })
@@ -772,6 +796,58 @@ class SupabaseStore implements Store {
       .from('site_settings')
       .upsert({ key: 'promo', value: next }, { onConflict: 'key' });
     if (error) throw new Error(`팝업 설정 저장 실패: ${error.message}`);
+  }
+
+  // ── 유저 (카카오 소셜 로그인, v2.8) — 관리자 세션과 완전 분리 ───
+
+  async getUserByKakaoId(kakaoId: string): Promise<User | null> {
+    const { data, error } = await getClient()
+      .from('users')
+      .select('*')
+      .eq('kakao_id', kakaoId)
+      .maybeSingle();
+    if (error) throw new Error(`유저 조회 실패: ${error.message}`);
+    return data ? toUser(data as UserRow) : null;
+  }
+
+  async createUser(input: {
+    kakaoId: string;
+    nickname: string;
+  }): Promise<User> {
+    const { data, error } = await getClient()
+      .from('users')
+      .insert({ kakao_id: input.kakaoId, nickname: input.nickname })
+      .select('*')
+      .single();
+    if (error) {
+      // kakao_id unique 위반(경쟁 상태) — 이미 만들어진 유저를 반환
+      if (error.code === '23505') {
+        const existing = await this.getUserByKakaoId(input.kakaoId);
+        if (existing) return existing;
+      }
+      throw new Error(`유저 생성 실패: ${error.message}`);
+    }
+    return toUser(data as UserRow);
+  }
+
+  async getUser(id: string): Promise<User | null> {
+    const { data, error } = await getClient()
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`유저 조회 실패: ${error.message}`);
+    return data ? toUser(data as UserRow) : null;
+  }
+
+  async listOrdersByUser(userId: string): Promise<Order[]> {
+    const { data, error } = await getClient()
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`내 주문 목록 조회 실패: ${error.message}`);
+    return (data as OrderRow[]).map(toOrder);
   }
 }
 

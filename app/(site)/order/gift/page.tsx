@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getStore } from '@/lib/db';
+import { getUserSession } from '@/lib/user-auth';
 import GiftOrderForm from '@/components/order/gift/GiftOrderForm';
 import type { OptionChoice, ProductLite } from '@/components/order/gift/types';
 
@@ -23,6 +24,10 @@ export default async function GiftOrderPage() {
     store.listOptions(),
   ]);
 
+  // v2.8 — 로그인 상태면 유저 닉네임으로 보내는 분(주문자) 성함을 프리필(선택, 수정 가능).
+  // 세션·유저 조회 실패는 비회원으로 강등(주문 흐름에 영향 없음).
+  const initialSenderName = await resolveNickname(store);
+
   const productMap = new Map(products.map((p) => [p.id, p]));
   const productList: ProductLite[] = products.map((p) => ({
     id: p.id,
@@ -44,5 +49,25 @@ export default async function GiftOrderPage() {
       };
     });
 
-  return <GiftOrderForm products={productList} options={choices} />;
+  return (
+    <GiftOrderForm
+      products={productList}
+      options={choices}
+      initialSenderName={initialSenderName}
+    />
+  );
+}
+
+/** 유저 세션이 있으면 닉네임을, 없으면(비회원·조회 실패) undefined 를 돌려준다. */
+async function resolveNickname(
+  store: ReturnType<typeof getStore>
+): Promise<string | undefined> {
+  try {
+    const session = await getUserSession();
+    if (!session) return undefined;
+    const user = await store.getUser(session.userId);
+    return user?.nickname?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }

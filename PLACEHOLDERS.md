@@ -46,3 +46,5 @@
 - [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정. 카톡 공유 미리보기 OG 이미지뿐 아니라 **사이트맵·robots·구조화 데이터(SEO)의 절대 URL 기준값**이라 필수. 미설정 시 `localhost`로 채워져 검색 노출이 깨짐
 - [ ] 신규 주문 문자 알림 — 알리고(smartsms.aligo.in) 가입 + 발신번호 등록 후 Vercel에 `CRON_SECRET`·`ALIGO_API_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER`·`NOTIFY_PHONE` 설정, `supabase/cron.sql` 실행 (README "신규 주문 문자 알림" 절 참고. 키 넣기 전까지는 드라이런)
 - [ ] AI 상담 챗봇 — console.anthropic.com에서 `ANTHROPIC_API_KEY` 발급 후 Vercel/`.env.local`에 설정 (README "AI 상담 챗봇" 절 참고. 키가 없으면 챗봇 버튼이 아예 표시되지 않으며, 선택 env `CHAT_MODEL`·`CHAT_EFFORT`로 모델·응답 속도 조절 가능)
+- [ ] **카카오 로그인(회원)** — developers.kakao.com에서 앱 생성 → REST API 키 발급, 카카오 로그인 활성화 + Redirect URI `NEXT_PUBLIC_SITE_URL/api/auth/kakao/callback` 등록 + 동의 항목 "닉네임" 사용 → Vercel/`.env.local`에 `KAKAO_REST_API_KEY`(선택 `KAKAO_CLIENT_SECRET`) 설정 (README "카카오 로그인(회원)" 절 참고). **키가 없으면 로그인 버튼이 아예 표시되지 않고 비회원 주문은 그대로 동작.** 로그인은 마이페이지(내 주문 내역) 편의만 — 포인트·쿠폰은 아직 없음
+- [ ] **라이브 Supabase DB에 회원 로그인용 스키마 실행** — 카카오 로그인을 켜기 전에 `users` 테이블 + `orders.user_id` 컬럼/인덱스를 라이브 DB에 추가해야 회원·주문이 저장됨(신규 설치는 `schema.sql`에 이미 포함). 운영 중 DB면 README "회원(users) 테이블 · orders.user_id 컬럼" 항목의 SQL 실행 (멱등). 미실행이어도 비회원 주문·주문조회는 정상

@@ -16,6 +16,8 @@ app/
     products/[id]/      상품 상세 (이미지·옵션 선택·상세 본문·배송/환불 안내)
     order/              주문서 → 결제 → success/fail → complete, 주문조회(lookup),
                         선물·대량 주문(gift, 다중 배송지)
+    my/                 마이페이지 (카카오 로그인 회원의 내 주문 내역)
+    login/              카카오 로그인 안내 페이지
   admin/                관리자 (자체 nav, Header/Footer 없음)
     login/              관리자 로그인
     (dashboard)/        주문 목록 · 주문 상세 · 상품 목록 · 상품 편집(옵션 관리,
@@ -23,6 +25,7 @@ app/
   api/
     orders/             주문 생성, 비회원 주문조회
     reviews/            구매자 리뷰 등록 (주문번호+연락처 인증, 사진 포함)
+    auth/               카카오 소셜 로그인 (kakao/시작·callback, logout)
     admin/              로그인/로그아웃, 주문 상태 변경(결제취소 포함),
                         상품 생성/수정/삭제, 옵션 생성/수정/삭제,
                         리뷰 숨김/삭제
@@ -39,18 +42,20 @@ components/
   review/               리뷰 작성 폼, 상품 상세 "구매 후기" 섹션, 별점 표시
   chat/                 AI 상담 챗봇 위젯 (ANTHROPIC_API_KEY 있을 때만 노출)
   promo/                입장 팝업 (명절 발송 캘린더) + "오늘 하루 보지 않기"
+  auth/                 카카오 로그인 버튼 · 로그아웃 버튼 (KAKAO 키 있을 때만 노출)
   ui/                   Button, Card, Input, Badge 등 공용 UI
 lib/
-  types.ts              Product / ProductOption / Order / Shipment / Review 타입
+  types.ts              Product / ProductOption / Order / Shipment / Review / User 타입
   db.ts                 저장소 추상화 (Supabase 없으면 인메모리 데모 모드로 자동 폴백)
   db-memory.ts          데모 모드 저장소 (시드 상품 3개·옵션 13개 + 예시 주문 2개)
   db-supabase.ts        Supabase 저장소 (서비스 롤 키, 서버 전용)
   storage.ts            Supabase Storage 리뷰 사진 업로드/삭제 (서버 전용)
   toss.ts               토스 결제 승인/취소 API (서버 전용)
   auth.ts               관리자 JWT 세션
+  user-auth.ts          회원(카카오) JWT 세션 — 관리자와 쿠키·claim 완전 분리 (서버 전용)
   format.ts             금액/전화번호/날짜 포맷
 proxy.ts                /admin 접근 가드 (Next 16 proxy 파일 컨벤션)
-supabase/schema.sql     Supabase 테이블 5개(products/product_options/orders/reviews/site_settings) + 시드
+supabase/schema.sql     Supabase 테이블 6개(products/product_options/orders/reviews/site_settings/users) + 시드
 ```
 
 ## 로컬 실행 — 데모 모드
@@ -75,7 +80,7 @@ http://localhost:3000 을 열면:
 데모 모드는 서버가 재시작되면 주문이 사라지므로, 실제 판매 전에 Supabase를 연결하세요.
 
 1. https://supabase.com 에서 가입 후 **새 프로젝트 생성** (무료 플랜으로 충분)
-2. 프로젝트 대시보드 → **SQL Editor** → 이 저장소의 `supabase/schema.sql` 내용 전체를 붙여넣고 **Run** (테이블 5개 + 시드 상품 3개·옵션 13개가 만들어집니다)
+2. 프로젝트 대시보드 → **SQL Editor** → 이 저장소의 `supabase/schema.sql` 내용 전체를 붙여넣고 **Run** (테이블 6개 + 시드 상품 3개·옵션 13개가 만들어집니다)
 3. 대시보드 → **Settings → API** 에서 값 2개를 복사해 `.env.local`(또는 Vercel 환경변수)에 넣기:
 
 ```
@@ -119,6 +124,26 @@ alter table public.site_settings enable row level security;
 
 - 테이블이 아직 없어도 사이트는 정상 동작합니다 — 팝업은 꺼진 상태(기본값)로 취급되어 손님 화면에 나타나지 않습니다. 위 SQL을 실행한 뒤에야 관리자 "팝업" 화면에서 켜고 날짜를 저장할 수 있습니다. 전체 `supabase/schema.sql`을 다시 실행해도 같은 결과가 됩니다.
 
+**회원(users) 테이블 · orders.user_id 컬럼 — 이미 Supabase를 쓰고 있던 경우**
+
+- v2.8부터 카카오 소셜 로그인(회원 마이페이지)이 추가되어 회원을 담을 `users` 테이블과, 주문을 회원과 잇는 `orders.user_id` 컬럼이 필요합니다. **기존에 schema.sql을 이미 실행했던 프로젝트라면**, 아래 문장만 SQL Editor에서 실행하면 됩니다 (모두 멱등이라 여러 번 실행해도 안전, 기존 주문의 `user_id`는 `null`(비회원)로 남습니다):
+
+```sql
+create table if not exists public.users (
+  id uuid primary key default gen_random_uuid(),
+  kakao_id text unique not null,
+  nickname text not null default '',
+  created_at timestamptz not null default now()
+);
+alter table public.users enable row level security;
+
+alter table public.orders
+  add column if not exists user_id text;
+create index if not exists orders_user_id_idx on public.orders (user_id);
+```
+
+- 이 테이블·컬럼이 없어도 **비회원 주문과 주문조회는 그대로 동작**합니다. 카카오 키(`KAKAO_REST_API_KEY`)를 넣지 않으면 로그인 버튼 자체가 나타나지 않으므로, 로그인 기능을 켜기 전이라면 위 SQL을 미리 실행하지 않아도 됩니다. 전체 `supabase/schema.sql`을 다시 실행해도 같은 결과가 됩니다.
+
 ## 토스페이먼츠 실 연동 (실제 결제 받기)
 
 기본 내장된 키는 **누구나 쓰는 문서용 테스트 키**라 실제 정산이 되지 않습니다. 실제로 돈을 받으려면:
@@ -148,8 +173,10 @@ TOSS_SECRET_KEY=live_sk_...               # 서버 전용 시크릿 키 (절대 
 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` | 토스 클라이언트 키 |
 | `TOSS_SECRET_KEY` | 토스 시크릿 키 |
 | `ADMIN_PASSWORD` | 관리자 비밀번호 (**반드시 설정** — 프로덕션에서 미설정이면 관리자 로그인이 거부됩니다) |
-| `AUTH_SECRET` | 관리자 세션 서명 키 (32자 이상 아무 랜덤 문자열, **반드시 설정** — 미설정이면 관리자 기능이 동작하지 않습니다) |
-| `NEXT_PUBLIC_SITE_URL` | 배포 주소 (예: `https://limfruits.vercel.app`) — 카톡 공유 미리보기(OG 이미지)용 |
+| `AUTH_SECRET` | 관리자·회원 세션 서명 키 (32자 이상 아무 랜덤 문자열, **반드시 설정** — 미설정이면 관리자 기능이 동작하지 않습니다. 카카오 로그인 세션도 이 값으로 서명합니다) |
+| `NEXT_PUBLIC_SITE_URL` | 배포 주소 (예: `https://limfruits.vercel.app`) — 카톡 공유 미리보기(OG 이미지)·카카오 로그인 redirect_uri 계산에 사용 |
+| `KAKAO_REST_API_KEY` | (선택) 카카오 로그인용 REST API 키. 넣으면 회원 로그인·마이페이지가 켜지고, 없으면 로그인 버튼이 나타나지 않습니다 (아래 "카카오 로그인(회원)" 참고) |
+| `KAKAO_CLIENT_SECRET` | (선택) 카카오 앱에서 Client Secret 사용을 켠 경우에만 |
 
 - 이후에는 GitHub에 푸시할 때마다 자동으로 재배포됩니다.
 - 도메인을 사려면 Vercel의 **Domains** 메뉴에서 연결할 수 있습니다.
@@ -199,6 +226,35 @@ ANTHROPIC_API_KEY=sk-ant-...   # 서버 전용 비밀 키 (절대 공개 금지)
 | `claude-haiku-4-5` | $1 | $5 | 가장 저렴, 간단한 상담에 충분 |
 
 상담 1회는 보통 수천 토큰 수준이라 일반적인 문의량에서는 월 몇 달러 이내입니다. IP당 10분에 20회 요청 제한이 걸려 있어 악의적 사용으로 비용이 급증하는 것을 막습니다. 정확한 사용량은 console.anthropic.com의 Usage 메뉴에서 확인할 수 있습니다.
+
+## 카카오 로그인(회원)
+
+손님이 카카오 계정으로 로그인하면 **마이페이지(`/my`)에서 내 주문 내역과 배송 현황을 한곳에서** 볼 수 있습니다. 로그인은 **편의 기능**일 뿐이라, **로그인 없이도 주문·결제·주문조회는 그대로** 됩니다(비회원 주문 유지). 포인트·쿠폰 같은 적립 기능은 아직 없습니다.
+
+**키가 없으면 로그인 버튼 자체가 나타나지 않습니다** — 챗봇과 같은 안전모드입니다. `KAKAO_REST_API_KEY`를 넣는 순간 헤더에 "로그인", 로그인한 손님에게는 "마이페이지"가 켜집니다. 키 없이 운영해도 사이트의 다른 기능은 평소대로 동작합니다.
+
+**켜는 방법**
+
+1. https://developers.kakao.com 에서 로그인 → **내 애플리케이션 → 애플리케이션 추가하기**로 앱을 만듭니다(앱 이름·회사명은 자유).
+2. 만든 앱 → **앱 설정 → 앱 키**에서 **REST API 키**를 복사합니다. 이 값이 `KAKAO_REST_API_KEY` 입니다.
+3. **제품 설정 → 카카오 로그인**을 **활성화 ON** 으로 켜고, 같은 화면에서 **Redirect URI**에 아래 주소를 **정확히** 등록합니다(배포 주소 기준):
+
+   ```
+   https://limfruits.vercel.app/api/auth/kakao/callback
+   ```
+
+   - 실제 도메인을 쓰면 그 도메인으로 등록하세요. 로컬 개발에서 로그인까지 테스트하려면 `http://localhost:3000/api/auth/kakao/callback`도 함께 등록합니다.
+   - 이 값은 사이트가 `NEXT_PUBLIC_SITE_URL`을 기준으로 만들므로, **`NEXT_PUBLIC_SITE_URL`을 실제 주소로 설정**해 두어야 등록한 Redirect URI와 정확히 일치합니다(미설정 시 요청 주소에서 유추).
+4. **제품 설정 → 카카오 로그인 → 동의 항목**에서 **닉네임**(profile_nickname)을 사용 설정합니다(마이페이지 인사말에 사용).
+5. (선택) 보안을 강화하려면 **제품 설정 → 카카오 로그인 → 보안**에서 **Client Secret**을 발급·사용으로 켜고, 그 값을 `KAKAO_CLIENT_SECRET`로 설정합니다. 켜지 않았다면 이 변수는 넣지 않아도 됩니다.
+6. Vercel **Settings → Environment Variables** 에 `KAKAO_REST_API_KEY`(와 필요 시 `KAKAO_CLIENT_SECRET`)를 넣고 재배포합니다. `AUTH_SECRET`(로그인 세션 서명)과 `NEXT_PUBLIC_SITE_URL`도 설정돼 있어야 합니다.
+
+**Supabase 연동 시** — 회원을 저장하려면 `users` 테이블과 `orders.user_id` 컬럼이 필요합니다. 위 **"Supabase 실제 연동"**의 *회원(users) 테이블 · orders.user_id 컬럼* 항목 SQL을 실행하세요(신규 설치는 `schema.sql`에 이미 포함). 데모(인메모리) 모드에서도 로그인 흐름은 동작하지만 서버를 재시작하면 회원 정보가 초기화됩니다.
+
+**동작·보안 메모**
+
+- 회원 세션은 관리자 세션과 **쿠키 이름·서명 claim이 완전히 분리**되어 있어 서로 섞이지 않습니다. 카카오 액세스 토큰은 서버에서 회원 정보를 한 번 읽는 데만 쓰고 클라이언트·DB에 저장하지 않습니다.
+- 로그인은 CSRF(state) 검증을 거치고, 로그인 후 이동은 **내부 경로로만** 제한됩니다(오픈 리다이렉트 방지). 마이페이지는 **본인 주문만** 보여 줍니다(로그인으로 인증되므로 전화번호 재확인 없음). 로그인 전에 비회원으로 넣은 주문은 마이페이지에 자동으로 붙지 않으며, 주문번호+연락처로 **주문조회**에서 확인할 수 있습니다.
 
 ## 관리자 페이지 사용법 (부모님용 안내)
 
