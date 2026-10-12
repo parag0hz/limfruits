@@ -3,7 +3,7 @@ import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 
 const SITE_DESCRIPTION =
-  "전남 나주 풍천대봉감농원에서 직접 재배한 나주배·황금배와 도라지배즙을 산지에서 바로 보내드립니다. 주문 확인 후 신선하게 선별해 발송합니다.";
+  "전남 나주 풍천대봉감농원에서 직접 재배한 나주배·황금배·대봉감과 도라지배즙을 산지에서 바로 보내드립니다. 주문 확인 후 신선하게 선별해 발송합니다.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(

@@ -12,9 +12,9 @@ import { organizationSchema, webSiteSchema } from "@/components/seo/schema";
 /** 관리자가 상품/가격/품절을 바꾸면 홈에 즉시 반영되도록 항상 동적 렌더 */
 export const dynamic = "force-dynamic";
 
-const HOME_TITLE = "임과일 — 나주 산지 직송 배 · 황금배 · 도라지배즙";
+const HOME_TITLE = "임과일 — 나주 산지 직송 배 · 대봉감 · 도라지배즙";
 const HOME_DESCRIPTION =
-  "전남 나주 풍천대봉감농원에서 직접 재배한 나주배·황금배와 도라지배즙을 산지에서 바로 보내드립니다. 표시 가격은 배송비 포함, 주문 확인 후 신선하게 발송합니다.";
+  "전남 나주 풍천대봉감농원에서 직접 재배한 나주배·황금배·대봉감과 도라지배즙을 산지에서 바로 보내드립니다. 표시 가격은 배송비 포함, 주문 확인 후 신선하게 발송합니다.";
 
 export const metadata: Metadata = {
   // 루트 template("%s | 임과일")을 우회해 홈은 완결된 제목을 그대로 쓴다.

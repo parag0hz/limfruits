@@ -14,10 +14,13 @@
 ## 상품·가격 (작년 추석 가격표 기준으로 반영 완료)
 
 - [x] 상품 카탈로그 — 나주배(신고·풍수) 6옵션 / 황금배 5옵션 / 도라지배즙 2옵션, 작년 추석 가격표 그대로. 라이브 DB + 시드(`lib/db-memory.ts`, `supabase/schema.sql`) 동일
+- [x] 대봉감 — 2026 판매 안내 그대로 5옵션(특대·대과·중과 10kg, 곶감·홍시용 10kg, 가정용 혼합 15kg) + 상세 블록 23개 + 실사진 7장(Storage `products/daebong-persimmon/`). GAP 제1006050호는 대봉 상자 표시사항으로 확인. 라이브 DB + 시드 동일 (2026-10-12)
+- [ ] **대봉감 "2026년 수확 안내" 블록 갱신** — "10월 29일부터 수확 예정" 문구. 수확이 시작되면 관리자 상세페이지 구성에서 문구를 바꾸거나 블록 삭제 (챗봇 안내 `lib/chat.ts`에도 같은 날짜가 있음)
+- [ ] **도라지배즙 상품명 확인** — 대봉감 판매 안내문에는 "도라지 생강 배즙 100봉지 50,000원"으로 적혀 있음. 사이트는 "도라지배즙"(배+도라지) — 생강이 들어간다면 상품명·설명 수정
 - [ ] **올해(2026) 추석 가격 확정** — 현재 가격은 작년(2025) 기준. 확정되면 관리자 `/admin/products`에서 옵션별 가격 수정
 - [x] 당도 수치 — 피그마 디자인 확정 시 미확정 수치는 페이지에서 제거하기로 함. 실측값이 생기면 관리자 상세페이지 구성에서 포인트 블록으로 추가 (선택)
 - [ ] 도라지배즙 상세 정보 — 봉지당 용량(ml), 제조원·유통기한 표기 여부 확인 후 상세 블록에 보강
-- [ ] 시즌 외 판매 여부 — 지금은 3개 상품 모두 노출 중. 시즌 아닌 상품은 관리자에서 "숨김" 처리
+- [ ] 시즌 외 판매 여부 — 지금은 4개 상품 모두 노출 중. 시즌 아닌 상품은 관리자에서 "숨김" 처리
 - [ ] **선물 배송비 포함가 정책이 대량 선물에도 맞는지 확인** — 선물·대량 주문은 각 세트 "배송비 포함가"를 그대로 합산합니다(받는 분 N명이면 배송비도 N건). 여러 세트를 한 주소로 보내거나 대량 물량에 배송비 할인/조정이 필요하면 정책을 정한 뒤 옵션 가격 또는 안내 문구에 반영
 
 ## 사진·인증
@@ -42,9 +45,11 @@
 
 - [x] Supabase 연동 — 라이브 DB 연결·검증 완료 (로컬 `.env.local` + Vercel)
 - [x] `ADMIN_PASSWORD` / `AUTH_SECRET` — Vercel 설정 확인됨
-- [ ] 토스페이먼츠 라이브 키 — 현재 문서 공개 테스트 키 폴백. 상점 심사 후 `NEXT_PUBLIC_TOSS_CLIENT_KEY` / `TOSS_SECRET_KEY` 설정
-- [ ] `NEXT_PUBLIC_SITE_URL` — Vercel에 `https://limfruits.vercel.app` 설정. 카톡 공유 미리보기 OG 이미지뿐 아니라 **사이트맵·robots·구조화 데이터(SEO)의 절대 URL 기준값**이라 필수. 미설정 시 `localhost`로 채워져 검색 노출이 깨짐
+- [ ] **토스페이먼츠 라이브 키** — 현재 문서 공개 테스트 키 폴백이라 **실제 결제가 되지 않음**(2026-10-12 운영 결제창에서 `test_gck_docs` 확인). 전자결제 신청은 개인사업자 **대표자(임용균) 본인만** 가능. 승인 후 결제위젯 연동 키 `live_gck_…`/`live_gsk_…`를 `NEXT_PUBLIC_TOSS_CLIENT_KEY`/`TOSS_SECRET_KEY`에 넣고 재배포. 면세사업자라 면세 금액 처리 방법을 토스에 확인
+- [x] `NEXT_PUBLIC_SITE_URL` — Vercel(Production)에 `https://limfruits.co.kr` 설정 (2026-10-12). 사이트맵·robots·구조화 데이터(SEO)·카톡 공유 미리보기의 절대 URL 기준값. 도메인을 바꾸면 이 값을 바꾸고 재배포
+- [x] 도메인 `limfruits.co.kr` — 가비아 구매(만료 2027-10-12), DNS는 Vercel 네임서버. `www`와 예전 주소 `limfruits.vercel.app`은 `limfruits.co.kr`로 308 이동, https 인증서 자동 갱신 (2026-10-12)
+- [ ] 가비아 네임서버 3차 `ns.gabia.net` 삭제 — 질의를 거부해서 동작엔 지장 없지만 정리 권장 (가비아 도메인 관리 → 네임서버/DNS호스트/DNSSEC → 네임 서버 설정, 소유자 인증 필요)
 - [ ] 신규 주문 문자 알림 — 알리고(smartsms.aligo.in) 가입 + 발신번호 등록 후 Vercel에 `CRON_SECRET`·`ALIGO_API_KEY`·`ALIGO_USER_ID`·`ALIGO_SENDER`·`NOTIFY_PHONE` 설정, `supabase/cron.sql` 실행 (README "신규 주문 문자 알림" 절 참고. 키 넣기 전까지는 드라이런)
-- [ ] AI 상담 챗봇 — console.anthropic.com에서 `ANTHROPIC_API_KEY` 발급 후 Vercel/`.env.local`에 설정 (README "AI 상담 챗봇" 절 참고. 키가 없으면 챗봇 버튼이 아예 표시되지 않으며, 선택 env `CHAT_MODEL`·`CHAT_EFFORT`로 모델·응답 속도 조절 가능)
-- [ ] **카카오 로그인(회원)** — developers.kakao.com에서 앱 생성 → REST API 키 발급, 카카오 로그인 활성화 + Redirect URI `NEXT_PUBLIC_SITE_URL/api/auth/kakao/callback` 등록 + 동의 항목 "닉네임" 사용 → Vercel/`.env.local`에 `KAKAO_REST_API_KEY`(선택 `KAKAO_CLIENT_SECRET`) 설정 (README "카카오 로그인(회원)" 절 참고). **키가 없으면 로그인 버튼이 아예 표시되지 않고 비회원 주문은 그대로 동작.** 로그인은 마이페이지(내 주문 내역) 편의만 — 포인트·쿠폰은 아직 없음
-- [ ] **라이브 Supabase DB에 회원 로그인용 스키마 실행** — 카카오 로그인을 켜기 전에 `users` 테이블 + `orders.user_id` 컬럼/인덱스를 라이브 DB에 추가해야 회원·주문이 저장됨(신규 설치는 `schema.sql`에 이미 포함). 운영 중 DB면 README "회원(users) 테이블 · orders.user_id 컬럼" 항목의 SQL 실행 (멱등). 미실행이어도 비회원 주문·주문조회는 정상
+- [x] AI 상담 챗봇 — Vercel에 `ANTHROPIC_API_KEY` 설정 확인 (2026-10-12). console.anthropic.com에서 `ANTHROPIC_API_KEY` 발급 후 Vercel/`.env.local`에 설정 (README "AI 상담 챗봇" 절 참고. 키가 없으면 챗봇 버튼이 아예 표시되지 않으며, 선택 env `CHAT_MODEL`·`CHAT_EFFORT`로 모델·응답 속도 조절 가능)
+- [x] **카카오 로그인(회원)** — `limfruits.co.kr` Redirect URI 등록 및 새 주소 로그인 확인 (2026-10-12). developers.kakao.com에서 앱 생성 → REST API 키 발급, 카카오 로그인 활성화 + Redirect URI `NEXT_PUBLIC_SITE_URL/api/auth/kakao/callback` 등록 + 동의 항목 "닉네임" 사용 → Vercel/`.env.local`에 `KAKAO_REST_API_KEY`(선택 `KAKAO_CLIENT_SECRET`) 설정 (README "카카오 로그인(회원)" 절 참고). **키가 없으면 로그인 버튼이 아예 표시되지 않고 비회원 주문은 그대로 동작.** 로그인 회원은 마이페이지(내 주문 내역)와 쿠폰·포인트(v2.9)를 쓸 수 있음
+- [x] **라이브 Supabase DB에 회원 로그인용 스키마 실행** — 라이브 로그인·마이페이지 동작 확인 (2026-10-12) — 카카오 로그인을 켜기 전에 `users` 테이블 + `orders.user_id` 컬럼/인덱스를 라이브 DB에 추가해야 회원·주문이 저장됨(신규 설치는 `schema.sql`에 이미 포함). 운영 중 DB면 README "회원(users) 테이블 · orders.user_id 컬럼" 항목의 SQL 실행 (멱등). 미실행이어도 비회원 주문·주문조회는 정상

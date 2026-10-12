@@ -338,7 +338,173 @@ const PEAR_JUICE_BLOCKS: DetailBlock[] = [
 ];
 
 /**
- * 시드 상품 3개 — 사용자의 작년 추석 가격표 기준 실제 카탈로그.
+ * 대봉감 상세 — 2026 판매 안내(가격·과수·수확 예정일) 기준. 사진은 사용자 제공(Storage products/daebong-persimmon/).
+ * GAP 인증번호는 대봉 상자 표시사항의 "인증번호 1006050"으로 확인. supabase/schema.sql 시드와 반드시 동일하게 유지할 것.
+ */
+const DAEBONG_PERSIMMON_DETAIL = [
+  '대봉감은 과실이 크고 과육이 부드러운 떫은감 품종입니다. 단단할 때는 떫은맛이 있어 말랑하게 익힌 홍시로 드시고, 작은 과는 곶감을 만들기에도 좋습니다.',
+  '임과일은 전남 나주 풍천대봉감농원에서 대봉감을 직접 재배합니다. 재배부터 수확, 선별, 포장까지 농장에서 관리하고 산지에서 바로 발송합니다. GAP(농산물우수관리) 인증을 받은 대봉감입니다.',
+  '구성은 특대·대과·중과 10kg, 곶감·홍시용 10kg, 가정용 혼합 15kg 중에서 선택할 수 있습니다. 과수 규격은 각 옵션에 표기되어 있으며, 모든 가격은 배송비 포함가입니다.',
+  '받으신 감은 상온에 두고 말랑해질 때까지 익혀 드세요. 다 익은 홍시는 냉장 보관하고, 오래 두려면 냉동해 두었다가 드셔도 좋습니다.',
+].join('\n\n');
+
+const DAEBONG_PERSIMMON_BLOCKS: DetailBlock[] = [
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/poster-2026.jpg",
+    "caption": "2026년 대봉감 예약 주문 · 전화 010-2618-5151"
+  },
+  {
+    "type": "heading",
+    "label": "임과일 대봉감",
+    "title": "나주에서 수확한 대봉감."
+  },
+  {
+    "type": "text",
+    "body": "전남 나주 풍천대봉감농원에서 재배부터 수확, 선별, 포장까지 직접 하고, 산지에서 바로 발송합니다."
+  },
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/orchard.jpg",
+    "caption": "수확을 앞둔 대봉감 과수원"
+  },
+  {
+    "type": "badge",
+    "title": "GAP 우수관리인증",
+    "body": "농림축산식품부 우수관리인증 제 1006050호"
+  },
+  {
+    "type": "notice",
+    "title": "2026년 수확 안내",
+    "body": "올해 대봉감은 10월 29일부터 수확할 예정입니다.\n\n수확 전에 주문하시면 수확을 시작한 뒤 주문 순서대로 발송합니다."
+  },
+  {
+    "type": "heading",
+    "label": "품종",
+    "title": "익혀서 먹는 떫은감입니다."
+  },
+  {
+    "type": "text",
+    "body": "대봉감은 과실이 크고 과육이 부드러운 떫은감 품종입니다. 갓 수확한 단단한 감은 떫은맛이 있어, 말랑하게 익힌 홍시로 드십니다.\n\n작은 과는 곶감을 만들기에도 좋습니다."
+  },
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/branch.jpg",
+    "caption": "나무에서 익어 가는 대봉감"
+  },
+  {
+    "type": "heading",
+    "label": "구성",
+    "title": "크기별로 골라 담았습니다."
+  },
+  {
+    "type": "specs",
+    "title": "배송비 포함가",
+    "rows": [
+      {
+        "k": "특대 10kg",
+        "v": "26과 내"
+      },
+      {
+        "k": "대과 10kg",
+        "v": "30과 내"
+      },
+      {
+        "k": "중과 10kg",
+        "v": "38과 내"
+      },
+      {
+        "k": "곶감·홍시용 10kg",
+        "v": "48과 내"
+      },
+      {
+        "k": "가정용 혼합 15kg",
+        "v": "흠과·못난이 혼합, 가공용"
+      }
+    ]
+  },
+  {
+    "type": "text",
+    "body": "같은 10kg이라도 과수가 적을수록 한 과가 큽니다. 구성과 크기는 작황에 따라 조금씩 달라질 수 있으며, 옵션별 가격은 상단 구매하기에서 확인해 주세요."
+  },
+  {
+    "type": "notice",
+    "title": "가정용 혼합 15kg",
+    "body": "겉에 흠이 있거나 모양이 고르지 않은 감을 섞어 담은 구성입니다.\n\n선물용이 아닌 가정용·가공용으로 권합니다."
+  },
+  {
+    "type": "heading",
+    "label": "출하 과정",
+    "title": "수확해서 산지에서 바로 보냅니다."
+  },
+  {
+    "type": "point",
+    "title": "수확",
+    "body": "과수원에서 대봉감을 수확해 바로 선별합니다.",
+    "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/harvest.jpg"
+  },
+  {
+    "type": "point",
+    "title": "선별",
+    "body": "크기별로 선별해 특대·대과·중과·곶감·홍시용으로 나눕니다.",
+    "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/tray.jpg"
+  },
+  {
+    "type": "point",
+    "title": "포장과 발송",
+    "body": "트레이에 한 과씩 담아 상자에 포장한 뒤 산지에서 발송합니다.",
+    "imageUrl": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/packing.jpg"
+  },
+  {
+    "type": "heading",
+    "label": "안내",
+    "title": "드시는 법과 보관"
+  },
+  {
+    "type": "notice",
+    "title": "홍시로 익혀 드세요",
+    "body": "받으신 감은 상온에 두고 말랑해질 때까지 익혀 드세요. 단단할 때는 떫은맛이 납니다.\n\n다 익은 홍시는 냉장 보관하고, 오래 두려면 냉동해 두었다가 드셔도 좋습니다."
+  },
+  {
+    "type": "notice",
+    "title": "확인해 주세요",
+    "body": "농산물 특성상 크기, 모양, 색이 사진과 다소 다를 수 있습니다.\n\n감마다 익는 속도가 달라, 같은 상자 안에서도 먼저 익는 감이 있습니다."
+  },
+  {
+    "type": "heading",
+    "label": "생산지",
+    "title": "전라남도 나주시"
+  },
+  {
+    "type": "text",
+    "body": "전라남도 나주시 덕룡로 33-8 풍천대봉감농원에서 재배하고 발송합니다."
+  },
+  {
+    "type": "image",
+    "url": "https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/tree.jpg",
+    "caption": "나주 과수원의 감나무"
+  },
+  {
+    "type": "specs",
+    "rows": [
+      {
+        "k": "생산자",
+        "v": "임용균 · 풍천대봉감농원"
+      },
+      {
+        "k": "문의",
+        "v": "010-2618-5151"
+      },
+      {
+        "k": "카카오톡",
+        "v": "limcon1"
+      }
+    ]
+  }
+];
+
+/**
+ * 시드 상품 4개 — 사용자의 작년 추석 가격표(배 3종) + 2026 대봉감 판매 안내 기준 실제 카탈로그.
  * 가격은 작년(2025 추석) 기준이므로 시즌마다 관리자에서 갱신.
  */
 function seedProducts(): Product[] {
@@ -374,11 +540,22 @@ function seedProducts(): Product[] {
       isActive: true,
       sortOrder: 3,
     },
+    {
+      id: 'daebong-persimmon',
+      name: '대봉감',
+      subtitle: 'GAP 인증 나주 대봉감, 산지에서 바로 보내드립니다',
+      imageUrl:
+        'https://slgqhazobcoesnpgztei.supabase.co/storage/v1/object/public/products/daebong-persimmon/hero.jpg',
+      detail: DAEBONG_PERSIMMON_DETAIL,
+      blocks: DAEBONG_PERSIMMON_BLOCKS,
+      isActive: true,
+      sortOrder: 4,
+    },
   ];
 }
 
 /**
- * 시드 옵션 13개 — 작년 추석 가격표 그대로 (배송비 포함가).
+ * 시드 옵션 18개 — 배는 작년 추석 가격표, 대봉감은 2026 판매 안내 그대로 (배송비 포함가).
  * 가격은 시즌마다 관리자 /admin/products 에서 갱신.
  */
 function seedOptions(): ProductOption[] {
@@ -502,6 +679,52 @@ function seedOptions(): ProductOption[] {
       price: 50000,
       soldOut: false,
       sortOrder: 2,
+    },
+    // 대봉감 (2026 판매 안내)
+    {
+      id: 'dp-10-xl',
+      productId: 'daebong-persimmon',
+      name: '특대 10kg (26과 내)',
+      description: '특대과 · 선물용',
+      price: 40000,
+      soldOut: false,
+      sortOrder: 1,
+    },
+    {
+      id: 'dp-10-l',
+      productId: 'daebong-persimmon',
+      name: '대과 10kg (30과 내)',
+      description: '대과 · 선물용',
+      price: 35000,
+      soldOut: false,
+      sortOrder: 2,
+    },
+    {
+      id: 'dp-10-m',
+      productId: 'daebong-persimmon',
+      name: '중과 10kg (38과 내)',
+      description: '중과 · 실속형',
+      price: 30000,
+      soldOut: false,
+      sortOrder: 3,
+    },
+    {
+      id: 'dp-10-s',
+      productId: 'daebong-persimmon',
+      name: '곶감·홍시용 10kg (48과 내)',
+      description: '작은 과 · 곶감·홍시용',
+      price: 28000,
+      soldOut: false,
+      sortOrder: 4,
+    },
+    {
+      id: 'dp-15-mix',
+      productId: 'daebong-persimmon',
+      name: '가정용 혼합 15kg',
+      description: '흠과·못난이 섞임 · 가공용',
+      price: 33000,
+      soldOut: false,
+      sortOrder: 5,
     },
   ];
 }

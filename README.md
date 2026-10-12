@@ -47,7 +47,7 @@ components/
 lib/
   types.ts              Product / ProductOption / Order / Shipment / Review / User 타입
   db.ts                 저장소 추상화 (Supabase 없으면 인메모리 데모 모드로 자동 폴백)
-  db-memory.ts          데모 모드 저장소 (시드 상품 3개·옵션 13개 + 예시 주문 2개)
+  db-memory.ts          데모 모드 저장소 (시드 상품 4개·옵션 18개 + 예시 주문 2개)
   db-supabase.ts        Supabase 저장소 (서비스 롤 키, 서버 전용)
   storage.ts            Supabase Storage 리뷰 사진 업로드/삭제 (서버 전용)
   toss.ts               토스 결제 승인/취소 API (서버 전용)
@@ -69,7 +69,7 @@ npm run dev
 
 http://localhost:3000 을 열면:
 
-- **데이터**: 환경변수가 없으면 자동으로 **인메모리 데모 모드**로 동작합니다. 상품 3개(나주배·황금배·도라지배즙)와 옵션 13개, 예시 주문 2개(이름에 "(예시)" 표기)가 미리 들어 있습니다. 서버를 재시작하면 데모 데이터는 초기화됩니다. 리뷰도 등록해 볼 수 있지만, 데모 모드에는 사진 저장소가 없어 **리뷰 사진은 저장되지 않습니다**(후기 글만 등록됨).
+- **데이터**: 환경변수가 없으면 자동으로 **인메모리 데모 모드**로 동작합니다. 상품 4개(나주배·황금배·도라지배즙·대봉감)와 옵션 18개, 예시 주문 2개(이름에 "(예시)" 표기)가 미리 들어 있습니다. 서버를 재시작하면 데모 데이터는 초기화됩니다. 리뷰도 등록해 볼 수 있지만, 데모 모드에는 사진 저장소가 없어 **리뷰 사진은 저장되지 않습니다**(후기 글만 등록됨).
 - **결제**: 토스페이먼츠 **공개 테스트 키**가 기본 내장되어 있어 결제창까지 실제로 열립니다. 테스트 키라 실제 돈은 빠져나가지 않습니다.
 - **관리자**: 홈 푸터의 "관리자" 링크 또는 `/admin` 접속 → 기본 비밀번호는 **`limfruits`** 입니다. (환경변수 `ADMIN_PASSWORD`를 설정하면 그 값으로 바뀝니다.) 이 기본값은 `npm run dev` 개발 모드에서만 동작하며, 배포(프로덕션)에서는 `ADMIN_PASSWORD`와 `AUTH_SECRET`을 설정하지 않으면 안전을 위해 관리자 로그인이 아예 막힙니다.
 
@@ -80,7 +80,7 @@ http://localhost:3000 을 열면:
 데모 모드는 서버가 재시작되면 주문이 사라지므로, 실제 판매 전에 Supabase를 연결하세요.
 
 1. https://supabase.com 에서 가입 후 **새 프로젝트 생성** (무료 플랜으로 충분)
-2. 프로젝트 대시보드 → **SQL Editor** → 이 저장소의 `supabase/schema.sql` 내용 전체를 붙여넣고 **Run** (테이블 6개 + 시드 상품 3개·옵션 13개가 만들어집니다)
+2. 프로젝트 대시보드 → **SQL Editor** → 이 저장소의 `supabase/schema.sql` 내용 전체를 붙여넣고 **Run** (테이블 6개 + 시드 상품 4개·옵션 18개가 만들어집니다)
 3. 대시보드 → **Settings → API** 에서 값 2개를 복사해 `.env.local`(또는 Vercel 환경변수)에 넣기:
 
 ```
@@ -148,14 +148,17 @@ create index if not exists orders_user_id_idx on public.orders (user_id);
 
 기본 내장된 키는 **누구나 쓰는 문서용 테스트 키**라 실제 정산이 되지 않습니다. 실제로 돈을 받으려면:
 
-1. https://developers.tosspayments.com 에서 회원가입 → **내 상점의 테스트 키**(클라이언트 키 `test_ck_…` / 시크릿 키 `test_sk_…`)를 발급받아 환경변수로 설정하고 결제 흐름을 확인
+1. https://developers.tosspayments.com 에서 회원가입 → **내 상점의 테스트 키**(결제위젯 연동 키: 클라이언트 키 `test_gck_…` / 시크릿 키 `test_gsk_…`)를 발급받아 환경변수로 설정하고 결제 흐름을 확인. 이 사이트는 결제위젯(`tossPayments.widgets()`)을 쓰므로 **API 개별 연동 키(`test_ck_…`/`test_sk_…`)가 아니라 결제위젯 연동 키**를 써야 합니다
 2. 토스페이먼츠에 **상점(사업자) 심사**를 신청 — 사업자등록증, 통신판매업 신고 등이 필요합니다
-3. 심사 승인 후 **라이브 키**(`live_ck_…` / `live_sk_…`)로 교체:
+3. 심사 승인 후 **라이브 결제위젯 연동 키**(`live_gck_…` / `live_gsk_…`)로 교체. 클라이언트 키와 시크릿 키는 반드시 같은 세트여야 합니다:
 
 ```
-NEXT_PUBLIC_TOSS_CLIENT_KEY=live_ck_...   # 브라우저에서 쓰는 클라이언트 키
-TOSS_SECRET_KEY=live_sk_...               # 서버 전용 시크릿 키 (절대 공개 금지)
+NEXT_PUBLIC_TOSS_CLIENT_KEY=live_gck_...  # 브라우저에서 쓰는 클라이언트 키
+TOSS_SECRET_KEY=live_gsk_...              # 서버 전용 시크릿 키 (절대 공개 금지)
 ```
+
+- `NEXT_PUBLIC_` 값은 빌드할 때 코드에 박히므로, Vercel에 넣은 뒤 **반드시 재배포**해야 반영됩니다.
+- 풍천대봉감농원은 **부가가치세 면세사업자**(사업자등록번호 가운데 `90`)입니다. 토스 신청 시 면세 상점으로 등록되는지, 결제 요청에 면세 금액을 따로 넘겨야 하는지 토스 기술지원에 확인하세요. 토스 문서에 따르면 면세 금액은 "면세 상점 혹은 복합 과세 상점일 때만" 적용됩니다.
 
 - 결제 금액은 항상 **서버가 DB 가격으로 다시 계산**해 승인하므로, 브라우저에서 금액을 조작할 수 없습니다.
 - **결제 취소(환불)** 는 관리자 페이지의 주문 상세에서 "결제취소" 버튼을 누르면 토스 취소 API가 호출되어 자동 환불됩니다. 토스 **상점관리자 콘솔**(https://app.tosspayments.com)에서도 직접 취소할 수 있습니다 (이 경우 사이트의 주문 상태도 관리자 페이지에서 '취소'로 맞춰 주세요).
@@ -174,7 +177,7 @@ TOSS_SECRET_KEY=live_sk_...               # 서버 전용 시크릿 키 (절대 
 | `TOSS_SECRET_KEY` | 토스 시크릿 키 |
 | `ADMIN_PASSWORD` | 관리자 비밀번호 (**반드시 설정** — 프로덕션에서 미설정이면 관리자 로그인이 거부됩니다) |
 | `AUTH_SECRET` | 관리자·회원 세션 서명 키 (32자 이상 아무 랜덤 문자열, **반드시 설정** — 미설정이면 관리자 기능이 동작하지 않습니다. 카카오 로그인 세션도 이 값으로 서명합니다) |
-| `NEXT_PUBLIC_SITE_URL` | 배포 주소 (예: `https://limfruits.vercel.app`) — 카톡 공유 미리보기(OG 이미지)·카카오 로그인 redirect_uri 계산에 사용 |
+| `NEXT_PUBLIC_SITE_URL` | 배포 주소 (`https://limfruits.co.kr`) — 카톡 공유 미리보기(OG 이미지)·카카오 로그인 redirect_uri 계산에 사용 |
 | `KAKAO_REST_API_KEY` | (선택) 카카오 로그인용 REST API 키. 넣으면 회원 로그인·마이페이지가 켜지고, 없으면 로그인 버튼이 나타나지 않습니다 (아래 "카카오 로그인(회원)" 참고) |
 | `KAKAO_CLIENT_SECRET` | (선택) 카카오 앱에서 Client Secret 사용을 켠 경우에만 |
 
@@ -240,10 +243,11 @@ ANTHROPIC_API_KEY=sk-ant-...   # 서버 전용 비밀 키 (절대 공개 금지)
 3. **제품 설정 → 카카오 로그인**을 **활성화 ON** 으로 켜고, 같은 화면에서 **Redirect URI**에 아래 주소를 **정확히** 등록합니다(배포 주소 기준):
 
    ```
-   https://limfruits.vercel.app/api/auth/kakao/callback
+   https://limfruits.co.kr/api/auth/kakao/callback
    ```
 
-   - 실제 도메인을 쓰면 그 도메인으로 등록하세요. 로컬 개발에서 로그인까지 테스트하려면 `http://localhost:3000/api/auth/kakao/callback`도 함께 등록합니다.
+   - 2026-10-12부터 실제 도메인 `limfruits.co.kr`을 씁니다. 예전 주소 `https://limfruits.vercel.app/api/auth/kakao/callback`도 등록돼 있으니 지우지 마세요. 로컬 개발에서 로그인까지 테스트하려면 `http://localhost:3000/api/auth/kakao/callback`도 함께 등록합니다.
+   - 개편된 콘솔에서는 Redirect URI가 **앱 → 플랫폼 키 → REST API 키(Default Rest API Key) 상세 → 카카오 로그인 리다이렉트 URI**에 있습니다.
    - 이 값은 사이트가 `NEXT_PUBLIC_SITE_URL`을 기준으로 만들므로, **`NEXT_PUBLIC_SITE_URL`을 실제 주소로 설정**해 두어야 등록한 Redirect URI와 정확히 일치합니다(미설정 시 요청 주소에서 유추).
 4. **제품 설정 → 카카오 로그인 → 동의 항목**에서 **닉네임**(profile_nickname)을 사용 설정합니다(마이페이지 인사말에 사용).
 5. (선택) 보안을 강화하려면 **제품 설정 → 카카오 로그인 → 보안**에서 **Client Secret**을 발급·사용으로 켜고, 그 값을 `KAKAO_CLIENT_SECRET`로 설정합니다. 켜지 않았다면 이 변수는 넣지 않아도 됩니다.
@@ -350,7 +354,7 @@ ANTHROPIC_API_KEY=sk-ant-...   # 서버 전용 비밀 키 (절대 공개 금지)
 
 **4. `NEXT_PUBLIC_SITE_URL` 은 반드시 실제 주소로**
 - 사이트맵·robots·구조화 데이터·카톡 공유 미리보기(OG)의 **절대 URL이 모두 이 값을 기준**으로 만들어집니다. 설정하지 않으면 `http://localhost:3000`으로 채워져 검색엔진·공유 미리보기가 깨집니다.
-- Vercel **Settings → Environment Variables** 에 `NEXT_PUBLIC_SITE_URL=https://limfruits.vercel.app`(또는 실제 도메인)을 넣고 재배포하세요.
+- Vercel **Settings → Environment Variables** 에 `NEXT_PUBLIC_SITE_URL=https://limfruits.co.kr`을 넣고 재배포하세요. (`NEXT_PUBLIC_` 값은 빌드 때 코드에 들어가므로 재배포해야 반영됩니다.)
 
 **5. 기존 Supabase 설치에 `marketing_consent` 컬럼 추가 (신규 설치는 불필요)**
 - `supabase/schema.sql`을 처음부터 실행하는 신규 설치는 이미 포함돼 있습니다. **이미 운영 중인 DB**라면 Supabase 대시보드 **SQL Editor** 에서 아래 한 문장만 실행하면 됩니다(멱등 — 여러 번 실행해도 안전):

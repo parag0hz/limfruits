@@ -16,7 +16,7 @@ select cron.schedule(
   '0 */4 * * *',
   $$
   select net.http_post(
-    url := 'https://limfruits.vercel.app/api/cron/notify-orders',
+    url := 'https://limfruits.co.kr/api/cron/notify-orders',
     headers := '{"Authorization": "Bearer <CRON_SECRET>"}'::jsonb
   );
   $$
